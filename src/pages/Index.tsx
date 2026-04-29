@@ -175,6 +175,7 @@ const Index = () => {
 
   const stopSpeaking = () => {
     audioRef.current?.pause();
+    window.speechSynthesis?.cancel();
     setSpeaking(false);
   };
 
