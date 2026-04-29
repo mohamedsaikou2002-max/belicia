@@ -31,6 +31,18 @@ const Index = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const speakWithBrowser = useCallback((text: string) => {
+    if (!("speechSynthesis" in window)) return false;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text.replace(/[*_#`]/g, ""));
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+    return true;
+  }, []);
+
   // load history once
   useEffect(() => {
     (async () => {
@@ -69,6 +81,12 @@ const Index = () => {
         },
       );
       if (!r.ok) throw new Error(`TTS failed (${r.status})`);
+      const contentType = r.headers.get("Content-Type") ?? "";
+      if (contentType.includes("application/json")) {
+        await r.json();
+        if (speakWithBrowser(text)) return;
+        throw new Error("Voice playback unavailable");
+      }
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
@@ -79,9 +97,9 @@ const Index = () => {
       await audio.play();
     } catch (e) {
       console.error(e);
-      setSpeaking(false);
+      if (!speakWithBrowser(text)) setSpeaking(false);
     }
-  }, [voiceOn]);
+  }, [voiceOn, speakWithBrowser]);
 
   const send = useCallback(async (text: string) => {
     const message = text.trim();
