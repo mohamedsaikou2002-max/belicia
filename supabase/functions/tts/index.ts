@@ -15,7 +15,12 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
-    if (!apiKey) throw new Error("ELEVENLABS_API_KEY not configured");
+    if (!apiKey) {
+      return new Response(JSON.stringify({ fallback: "browser_speech", reason: "ELEVENLABS_API_KEY not configured" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const r = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`,
@@ -28,7 +33,10 @@ Deno.serve(async (req) => {
 
     if (!r.ok) {
       const err = await r.text();
-      throw new Error(`TTS failed: ${err}`);
+      return new Response(JSON.stringify({ fallback: "browser_speech", reason: err || `TTS failed: ${r.status}` }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(r.body, {
