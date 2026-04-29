@@ -14,7 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      belicia_memory: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          importance: number
+          role: string
+          summary: string | null
+          tags: string[] | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          importance?: number
+          role: string
+          summary?: string | null
+          tags?: string[] | null
+          user_id?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          importance?: number
+          role?: string
+          summary?: string | null
+          tags?: string[] | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      belicia_profile: {
+        Row: {
+          id: string
+          name: string | null
+          preferences: Json
+          projects: Json
+          thought_patterns: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          name?: string | null
+          preferences?: Json
+          projects?: Json
+          thought_patterns?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          id?: string
+          name?: string | null
+          preferences?: Json
+          projects?: Json
+          thought_patterns?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
