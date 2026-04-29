@@ -152,17 +152,22 @@ export const BeliciaOrb = ({ intensity, speaking }: Props) => {
     };
     tick();
 
+    let resizeRaf = 0;
     const onResize = () => {
-      const W = mount.clientWidth, H = mount.clientHeight;
-      renderer.setSize(W, H);
-      camera.aspect = W / H;
-      camera.updateProjectionMatrix();
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        const W = mount.clientWidth, H = mount.clientHeight;
+        renderer.setSize(W, H);
+        camera.aspect = W / H;
+        camera.updateProjectionMatrix();
+      });
     };
     const ro = new ResizeObserver(onResize);
     ro.observe(mount);
 
     return () => {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(resizeRaf);
       ro.disconnect();
       renderer.dispose();
       geometry.dispose();
