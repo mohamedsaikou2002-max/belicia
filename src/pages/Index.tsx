@@ -34,10 +34,6 @@ const Index = () => {
   // load history once
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.functions.invoke("memory", {
-        method: "GET",
-      } as any);
-      // invoke doesn't pass query params well; use direct fetch instead
       const url = `https://focrrskgrxdkiddajxuq.supabase.co/functions/v1/memory?action=recent`;
       const r = await fetch(url, {
         headers: {
@@ -60,12 +56,20 @@ const Index = () => {
     if (!voiceOn || !text) return;
     try {
       setSpeaking(true);
-      const { data, error } = await supabase.functions.invoke("tts", {
-        body: { text },
-      });
-      if (error) throw error;
-      // data is a Blob
-      const blob = data instanceof Blob ? data : new Blob([data], { type: "audio/mpeg" });
+      const r = await fetch(
+        `https://focrrskgrxdkiddajxuq.supabase.co/functions/v1/tts`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ text }),
+        },
+      );
+      if (!r.ok) throw new Error(`TTS failed (${r.status})`);
+      const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current?.pause();
