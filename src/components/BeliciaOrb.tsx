@@ -112,10 +112,10 @@ export const BeliciaOrb = ({ intensity, speaking }: Props) => {
         varying vec3 vNormal;
         varying float vDisplace;
         void main() {
-          vec3 cyan = vec3(0.2, 1.0, 1.0);
-          vec3 magenta = vec3(1.0, 0.3, 1.0);
+          vec3 white = vec3(1.0, 1.0, 1.0);
+          vec3 grey = vec3(0.4, 0.4, 0.4);
           float mixv = 0.5 + 0.5 * sin(uTime * 0.5 + vDisplace * 4.0);
-          vec3 col = mix(cyan, magenta, mixv);
+          vec3 col = mix(grey, white, mixv);
           float fres = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.0);
           col += fres * 0.6;
           float alpha = 0.55 + fres * 0.4 + uSpeaking * 0.15;
@@ -131,7 +131,7 @@ export const BeliciaOrb = ({ intensity, speaking }: Props) => {
     const halo = new THREE.Mesh(
       new THREE.IcosahedronGeometry(1.6, 2),
       new THREE.MeshBasicMaterial({
-        color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.15,
+        color: 0xffffff, wireframe: true, transparent: true, opacity: 0.15,
       }),
     );
     scene.add(halo);
