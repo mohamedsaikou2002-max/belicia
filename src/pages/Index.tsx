@@ -181,13 +181,13 @@ const Index = () => {
 
   return (
     <main className="min-h-screen flex flex-col text-foreground">
-      <header className="flex items-center justify-between px-6 py-4 bg-glass border-b border-cyan-400/10">
+      <header className="flex items-center justify-between px-6 py-4 bg-glass border-b border-white/10">
         <div>
           <h1 className="text-2xl font-light tracking-[0.3em] text-glow">BELICIA</h1>
-          <p className="text-xs text-cyan-200/50 tracking-widest mt-1">PERSONAL AI · ALWAYS LEARNING</p>
+          <p className="text-xs text-white/50 tracking-widest mt-1">PERSONAL AI · ALWAYS LEARNING</p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-cyan-100/70">
+          <label className="flex items-center gap-2 text-xs text-white/70">
             <Archive className="w-3.5 h-3.5" />
             Archive RAG
             <Switch checked={useArchive} onCheckedChange={setUseArchive} />
