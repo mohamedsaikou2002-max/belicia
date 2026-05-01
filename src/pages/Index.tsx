@@ -35,8 +35,13 @@ const Index = () => {
     if (!("speechSynthesis" in window)) return false;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text.replace(/[*_#`]/g, ""));
+    const voices = window.speechSynthesis.getVoices();
+    const feminine = voices.find(v => /samantha|victoria|karen|tessa|zira|female|google uk english female/i.test(v.name))
+      || voices.find(v => /en[-_]/i.test(v.lang) && /female/i.test(v.name))
+      || voices.find(v => /en[-_]/i.test(v.lang));
+    if (feminine) utterance.voice = feminine;
     utterance.rate = 0.95;
-    utterance.pitch = 1;
+    utterance.pitch = 1.15;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     window.speechSynthesis.speak(utterance);
