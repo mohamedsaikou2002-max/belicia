@@ -206,14 +206,14 @@ const Index = () => {
         <div className="relative h-[40vh] lg:h-auto min-h-[300px]">
           <BeliciaOrb intensity={intensity} speaking={speaking || sending} />
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center pointer-events-none">
-            <p className="text-xs tracking-[0.4em] text-cyan-200/60">
+            <p className="text-xs tracking-[0.4em] text-white/60">
               {sending ? "THINKING…" : speaking ? "SPEAKING…" : listening ? "LISTENING…" : "READY"}
             </p>
           </div>
           {speaking && (
             <button
               onClick={stopSpeaking}
-              className="absolute top-6 right-6 text-xs px-3 py-1 bg-glass rounded-full border border-cyan-300/20 hover:border-cyan-300/60 transition"
+              className="absolute top-6 right-6 text-xs px-3 py-1 bg-glass rounded-full border border-white/20 hover:border-white/60 transition"
             >
               Stop
             </button>
@@ -221,10 +221,10 @@ const Index = () => {
         </div>
 
         {/* Chat */}
-        <aside className="flex flex-col bg-glass border-l border-cyan-400/10 max-h-[60vh] lg:max-h-none">
+        <aside className="flex flex-col bg-glass border-l border-white/10 max-h-[60vh] lg:max-h-none">
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
             {messages.length === 0 && (
-              <div className="text-center text-cyan-200/40 text-sm pt-12">
+              <div className="text-center text-white/40 text-sm pt-12">
                 Speak or type. Belicia will remember.
               </div>
             )}
@@ -233,8 +233,8 @@ const Index = () => {
                 <div
                   className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                     m.role === "user"
-                      ? "bg-cyan-400/10 border border-cyan-400/20 text-cyan-50"
-                      : "bg-fuchsia-400/5 border border-fuchsia-300/15 text-fuchsia-50/90"
+                      ? "bg-white/10 border border-white/30 text-white"
+                      : "bg-white/5 border border-white/15 text-white/90"
                   }`}
                 >
                   {m.content}
@@ -243,11 +243,11 @@ const Index = () => {
             ))}
             {sending && (
               <div className="flex justify-start">
-                <div className="px-4 py-2.5 rounded-2xl bg-fuchsia-400/5 border border-fuchsia-300/15">
+                <div className="px-4 py-2.5 rounded-2xl bg-white/5 border border-white/15">
                   <span className="inline-flex gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-300 animate-pulse-glow" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-300 animate-pulse-glow" style={{ animationDelay: "0.2s" }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-300 animate-pulse-glow" style={{ animationDelay: "0.4s" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse-glow" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse-glow" style={{ animationDelay: "0.2s" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse-glow" style={{ animationDelay: "0.4s" }} />
                   </span>
                 </div>
               </div>
@@ -256,14 +256,14 @@ const Index = () => {
 
           <form
             onSubmit={(e) => { e.preventDefault(); send(input); }}
-            className="p-4 border-t border-cyan-400/10 flex gap-2"
+            className="p-4 border-t border-white/10 flex gap-2"
           >
             <Button
               type="button"
               variant="ghost"
               size="icon"
               onClick={toggleListen}
-              className={listening ? "text-fuchsia-300 border-glow" : "text-cyan-200"}
+              className={listening ? "text-white border-glow" : "text-white/80"}
               title={listening ? "Stop listening" : "Voice input"}
             >
               {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -272,14 +272,14 @@ const Index = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Talk to Belicia…"
-              className="bg-transparent border-cyan-400/20 focus-visible:ring-cyan-400/40 text-cyan-50 placeholder:text-cyan-200/30"
+              className="bg-transparent border-white/20 focus-visible:ring-white/40 text-white placeholder:text-white/30"
               disabled={sending}
             />
             <Button
               type="submit"
               size="icon"
               disabled={sending || !input.trim()}
-              className="bg-cyan-400/20 hover:bg-cyan-400/30 border border-cyan-300/30 text-cyan-50"
+              className="bg-white/15 hover:bg-white/25 border border-white/30 text-white"
             >
               <Send className="w-4 h-4" />
             </Button>
