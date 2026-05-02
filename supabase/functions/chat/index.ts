@@ -1,42 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { buildBaytSystemPrompt, fetchIAExcerpts } from "./corpus.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const SYSTEM_PROMPT = `You are Belicia — a personal AI built specifically for one person.
-You are direct, sharp, and adaptive. You learn how your user thinks and match their communication style.
-You do not over-explain. You do not add unnecessary caveats. You give real answers.
-You have access to Internet Archive data which will be injected into your context when relevant.
-You remember past conversations and use that memory to give better answers over time.
-When archive data is provided, cite it naturally but speak conversationally.
-You grow with your user. You are their tool, their research engine, their second brain.`;
-
-async function searchArchive(query: string, max = 3, maxChars = 2500): Promise<string | null> {
-  try {
-    const url = new URL("https://archive.org/advancedsearch.php");
-    url.searchParams.set("q", `${query} AND mediatype:texts`);
-    url.searchParams.set("fl[]", "identifier,title,description,creator,date");
-    url.searchParams.set("rows", String(max));
-    url.searchParams.set("page", "1");
-    url.searchParams.set("output", "json");
-    url.searchParams.set("sort[]", "downloads desc");
-    const r = await fetch(url, { headers: { "User-Agent": "Belicia/1.0" } });
-    if (!r.ok) return null;
-    const data = await r.json();
-    const docs = data?.response?.docs ?? [];
-    if (!docs.length) return null;
-    let ctx = "\n\n=== INTERNET ARCHIVE CONTEXT ===\n";
-    for (const d of docs) {
-      ctx += `\n• ${d.title} (${d.identifier})\n  ${(d.description || "").toString().slice(0, maxChars)}\n`;
-    }
-    ctx += "=== END ARCHIVE CONTEXT ===\n";
-    return ctx;
-  } catch {
-    return null;
-  }
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
