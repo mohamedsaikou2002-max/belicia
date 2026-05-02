@@ -187,12 +187,23 @@ const Index = () => {
 
   return (
     <main className="min-h-screen flex flex-col text-foreground">
-      <header className="flex items-center justify-between px-6 py-4 bg-glass border-b border-white/10">
+      <header className="flex items-center justify-between px-6 py-4 bg-glass border-b border-white/10 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-light tracking-[0.3em] text-glow">BELICIA</h1>
-          <p className="text-xs text-white/50 tracking-widest mt-1">PERSONAL AI · ALWAYS LEARNING</p>
+          <p className="text-xs text-white/50 tracking-widest mt-1">BAYT AL-HIKMAH · HOUSE OF WISDOM</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value as any)}
+            className="bg-transparent border border-white/20 text-white/80 text-xs px-2 py-1 rounded-md focus:outline-none focus:border-white/60"
+            title="Inquiry mode"
+          >
+            <option value="wisdom" className="bg-black">Wisdom</option>
+            <option value="tafsir" className="bg-black">Theological Reflection</option>
+            <option value="cosmology" className="bg-black">Cosmology &amp; Rank</option>
+            <option value="ethics" className="bg-black">Ethics &amp; Action</option>
+          </select>
           <label className="flex items-center gap-2 text-xs text-white/70">
             <Archive className="w-3.5 h-3.5" />
             Archive RAG
