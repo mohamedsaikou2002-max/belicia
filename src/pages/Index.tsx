@@ -130,7 +130,7 @@ const Index = () => {
       setSending(false);
       setIntensity(0);
     }
-  }, [sending, useArchive, speak]);
+  }, [sending, useArchive, mode, speak]);
 
   // voice input
   const toggleListen = useCallback(() => {
