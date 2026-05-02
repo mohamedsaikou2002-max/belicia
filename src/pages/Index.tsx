@@ -25,7 +25,7 @@ const Index = () => {
   const [speaking, setSpeaking] = useState(false);
   const [voiceOn, setVoiceOn] = useState(true);
   const [useArchive, setUseArchive] = useState(false);
-  const [mode, setMode] = useState<"wisdom" | "tafsir" | "cosmology" | "ethics">("wisdom");
+  const [mode, setMode] = useState<"wisdom" | "tafsir" | "cosmology" | "ethics" | "conquest">("wisdom");
   const [intensity, setIntensity] = useState(0);
 
   const recogRef = useRef<any>(null);
@@ -203,6 +203,7 @@ const Index = () => {
             <option value="tafsir" className="bg-black">Theological Reflection</option>
             <option value="cosmology" className="bg-black">Cosmology &amp; Rank</option>
             <option value="ethics" className="bg-black">Ethics &amp; Action</option>
+            <option value="conquest" className="bg-black">Khalid's Offensive</option>
           </select>
           <label className="flex items-center gap-2 text-xs text-white/70">
             <Archive className="w-3.5 h-3.5" />
