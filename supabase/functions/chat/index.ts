@@ -108,7 +108,12 @@ Deno.serve(async (req) => {
       user_id, role: "assistant", content: reply, importance: 5,
     });
 
-    return new Response(JSON.stringify({ response: reply, used_archive: use_archive }), {
+    return new Response(JSON.stringify({
+      response: reply,
+      used_archive: use_archive,
+      mode,
+      ia_sources: iaExcerpts.map(e => ({ title: e.source, author: e.author, year: e.year, iaId: e.iaId })),
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
