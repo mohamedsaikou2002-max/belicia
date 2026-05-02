@@ -25,6 +25,7 @@ const Index = () => {
   const [speaking, setSpeaking] = useState(false);
   const [voiceOn, setVoiceOn] = useState(true);
   const [useArchive, setUseArchive] = useState(false);
+  const [mode, setMode] = useState<"wisdom" | "tafsir" | "cosmology" | "ethics">("wisdom");
   const [intensity, setIntensity] = useState(0);
 
   const recogRef = useRef<any>(null);
