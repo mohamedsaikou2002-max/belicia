@@ -117,7 +117,7 @@ const Index = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke("chat", {
-        body: { message, use_archive: useArchive },
+        body: { message, use_archive: useArchive, mode },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
