@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { message, user_id = "default", use_archive = false } = await req.json();
+    const { message, user_id = "default", use_archive = false, mode = "wisdom" } = await req.json();
     if (!message) {
       return new Response(JSON.stringify({ error: "message required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -22,12 +22,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // save user message
     await supabase.from("belicia_memory").insert({
       user_id, role: "user", content: message, importance: 5,
     });
 
-    // pull memory
     const { data: recent } = await supabase
       .from("belicia_memory")
       .select("role, content, created_at")
@@ -50,20 +48,18 @@ Deno.serve(async (req) => {
       .limit(1);
     const profile = profileRows?.[0];
 
-    // build system prompt
-    let system = SYSTEM_PROMPT;
+    // Stage 1: Retrieve live IA excerpts when archive mode is on
+    const iaExcerpts = use_archive ? await fetchIAExcerpts(message, 3, 600) : [];
+
+    // Stage 2: Build Bayt al-Hikmah system prompt
+    let system = buildBaytSystemPrompt(mode, iaExcerpts);
+
     if (profile) {
-      system += "\n\n=== USER PROFILE ===\n";
+      system += "\n\n## User Profile\n";
       if (profile.name) system += `Name: ${profile.name}\n`;
       if (profile.preferences) system += `Preferences: ${JSON.stringify(profile.preferences)}\n`;
       if (profile.thought_patterns) system += `Communication style: ${JSON.stringify(profile.thought_patterns)}\n`;
       if (profile.projects) system += `Active projects: ${JSON.stringify(profile.projects)}\n`;
-      system += "=== END PROFILE ===\n";
-    }
-
-    if (use_archive) {
-      const ctx = await searchArchive(message);
-      if (ctx) system += ctx;
     }
 
     // dedupe and build messages
