@@ -235,7 +235,12 @@ const Index = () => {
       <section className="grid lg:grid-cols-[1fr_minmax(0,520px)] flex-1 gap-0">
         {/* Orb */}
         <div className="relative h-[40vh] lg:h-auto min-h-[300px]">
-          <BeliciaOrb intensity={intensity} speaking={speaking || sending} />
+          <BeliciaOrb
+            intensity={intensity}
+            speaking={speaking || sending}
+            pemfCoherence={pemf?.coherenceScore ?? null}
+            pemfConnected={pemfConnected}
+          />
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center pointer-events-none">
             <p className="text-xs tracking-[0.4em] text-white/60">
               {sending ? "THINKING…" : speaking ? "SPEAKING…" : listening ? "LISTENING…" : "READY"}
