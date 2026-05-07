@@ -206,6 +206,7 @@ const Index = () => {
           <p className="text-xs text-white/50 tracking-widest mt-1">BAYT AL-HIKMAH · HOUSE OF WISDOM</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <TopNav />
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as any)}
