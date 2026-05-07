@@ -120,7 +120,17 @@ const Index = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke("chat", {
-        body: { message, use_archive: useArchive, mode },
+        body: {
+          message,
+          userId: "default",
+          archiveMode: useArchive,
+          inquiryMode: mode,
+          pemfContext: pemf ? {
+            coherenceScore: pemf.coherenceScore,
+            recoveryState: pemf.recoveryState,
+            hrvScore: pemf.hrvScore,
+          } : null,
+        },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
