@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BeliciaOrb } from "@/components/BeliciaOrb";
+import { TopNav } from "@/components/TopNav";
+import { usePemfState } from "@/hooks/usePemfState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -27,6 +29,7 @@ const Index = () => {
   const [useArchive, setUseArchive] = useState(false);
   const [mode, setMode] = useState<"wisdom" | "tafsir" | "cosmology" | "ethics" | "conquest">("wisdom");
   const [intensity, setIntensity] = useState(0);
+  const { pemf, connected: pemfConnected } = usePemfState("default");
 
   const recogRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -117,7 +120,17 @@ const Index = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke("chat", {
-        body: { message, use_archive: useArchive, mode },
+        body: {
+          message,
+          userId: "default",
+          archiveMode: useArchive,
+          inquiryMode: mode,
+          pemfContext: pemf ? {
+            coherenceScore: pemf.coherenceScore,
+            recoveryState: pemf.recoveryState,
+            hrvScore: pemf.hrvScore,
+          } : null,
+        },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -193,6 +206,7 @@ const Index = () => {
           <p className="text-xs text-white/50 tracking-widest mt-1">BAYT AL-HIKMAH · HOUSE OF WISDOM</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <TopNav />
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as any)}
@@ -222,7 +236,12 @@ const Index = () => {
       <section className="grid lg:grid-cols-[1fr_minmax(0,520px)] flex-1 gap-0">
         {/* Orb */}
         <div className="relative h-[40vh] lg:h-auto min-h-[300px]">
-          <BeliciaOrb intensity={intensity} speaking={speaking || sending} />
+          <BeliciaOrb
+            intensity={intensity}
+            speaking={speaking || sending}
+            pemfCoherence={pemf?.coherenceScore ?? null}
+            pemfConnected={pemfConnected}
+          />
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center pointer-events-none">
             <p className="text-xs tracking-[0.4em] text-white/60">
               {sending ? "THINKING…" : speaking ? "SPEAKING…" : listening ? "LISTENING…" : "READY"}

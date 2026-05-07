@@ -4,9 +4,19 @@ import * as THREE from "three";
 interface Props {
   intensity: number; // 0-1, drives glow/distortion
   speaking: boolean;
+  pemfCoherence?: number | null; // 0-100
+  pemfConnected?: boolean;
 }
 
-export const BeliciaOrb = ({ intensity, speaking }: Props) => {
+function coherenceTier(c: number | null | undefined): "none" | "depleted" | "recovering" | "optimal" | "peak" {
+  if (c == null) return "none";
+  if (c < 31) return "depleted";
+  if (c < 56) return "recovering";
+  if (c < 80) return "optimal";
+  return "peak";
+}
+
+export const BeliciaOrb = ({ intensity, speaking, pemfCoherence = null, pemfConnected = false }: Props) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const intensityRef = useRef(intensity);
   const speakingRef = useRef(speaking);
@@ -176,5 +186,56 @@ export const BeliciaOrb = ({ intensity, speaking }: Props) => {
     };
   }, []);
 
-  return <div ref={mountRef} className="w-full h-full" aria-hidden />;
+  const tier = coherenceTier(pemfCoherence);
+  const tierColor =
+    tier === "depleted" ? "rgb(120,140,170)" :
+    tier === "recovering" ? "rgb(220,220,220)" :
+    tier === "optimal" ? "rgb(230,200,120)" :
+    tier === "peak" ? "rgb(255,215,100)" :
+    "rgb(150,150,150)";
+  const pulseClass =
+    tier === "depleted" ? "animate-[pulse_2s_ease-in-out_infinite] opacity-80" :
+    tier === "peak" ? "animate-[pulse_3.5s_ease-in-out_infinite]" :
+    "";
+  const ringPct = pemfCoherence ?? 0;
+  const circumference = 2 * Math.PI * 26;
+  const dash = (ringPct / 100) * circumference;
+
+  return (
+    <div className={`relative w-full h-full ${pulseClass}`}>
+      <div ref={mountRef} className="w-full h-full" aria-hidden />
+
+      {/* PEMF connection dot */}
+      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        <span
+          className={`w-1.5 h-1.5 rounded-full ${pemfConnected ? "bg-green-400 animate-pulse" : "bg-white/30"}`}
+          title={pemfConnected ? "PEMF connected" : "PEMF offline"}
+        />
+        <span className="text-[10px] tracking-widest text-white/40 font-[Tektur]">PEMF</span>
+      </div>
+
+      {/* Coherence ring */}
+      {pemfCoherence != null && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 group">
+          <svg width="60" height="60" viewBox="0 0 60 60" className="block">
+            <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
+            <circle
+              cx="30" cy="30" r="26" fill="none"
+              stroke={tierColor} strokeWidth="2" strokeLinecap="round"
+              strokeDasharray={`${dash} ${circumference}`}
+              transform="rotate(-90 30 30)"
+              style={{ transition: "stroke-dasharray 600ms ease, stroke 600ms ease" }}
+            />
+          </svg>
+          <div
+            className="absolute inset-0 flex items-center justify-center text-[11px] font-[Tektur] tracking-wider opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ color: tierColor }}
+          >
+            {Math.round(pemfCoherence)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
+
