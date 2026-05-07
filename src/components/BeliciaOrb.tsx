@@ -4,9 +4,19 @@ import * as THREE from "three";
 interface Props {
   intensity: number; // 0-1, drives glow/distortion
   speaking: boolean;
+  pemfCoherence?: number | null; // 0-100
+  pemfConnected?: boolean;
 }
 
-export const BeliciaOrb = ({ intensity, speaking }: Props) => {
+function coherenceTier(c: number | null | undefined): "none" | "depleted" | "recovering" | "optimal" | "peak" {
+  if (c == null) return "none";
+  if (c < 31) return "depleted";
+  if (c < 56) return "recovering";
+  if (c < 80) return "optimal";
+  return "peak";
+}
+
+export const BeliciaOrb = ({ intensity, speaking, pemfCoherence = null, pemfConnected = false }: Props) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const intensityRef = useRef(intensity);
   const speakingRef = useRef(speaking);
