@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BeliciaOrb } from "@/components/BeliciaOrb";
+import { TopNav } from "@/components/TopNav";
+import { usePemfState } from "@/hooks/usePemfState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
