@@ -27,7 +27,7 @@ const ProfilePage = () => {
       const { data } = await supabase
         .from("belicia_profile").select("*").eq("user_id", "default").maybeSingle();
       setP(data ?? { user_id: "default" });
-      setMissionsText((data?.active_missions ?? []).join("\n"));
+      setMissionsText((((data?.active_missions ?? []) as unknown) as string[]).join("\n"));
     })();
   }, []);
 

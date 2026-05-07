@@ -35,7 +35,7 @@ export function usePushNotifications(userId = "default") {
       ...(vapid ? { applicationServerKey: vapid } : {}),
     });
     await supabase.from("belicia_profile")
-      .update({ push_subscription: sub.toJSON() })
+      .update({ push_subscription: sub.toJSON() as any })
       .eq("user_id", userId);
     setIsSubscribed(true);
   };
