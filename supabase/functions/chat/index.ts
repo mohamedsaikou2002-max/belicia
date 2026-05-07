@@ -6,11 +6,42 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const SCENE_TRIGGERS: Array<{ re: RegExp; scene: string }> = [
+  { re: /\b(entering focus|deep work|focus mode)\b/i, scene: "focus_mode" },
+  { re: /\b(prayer time|salah|adhan|salat)\b/i, scene: "prayer_mode" },
+  { re: /\b(going to sleep|rest now|sleep mode|good night)\b/i, scene: "sleep_mode" },
+  { re: /\b(recovery mode|wind down|recover)\b/i, scene: "recovery_mode" },
+];
+
+function importanceFor(mode: string, content: string): number {
+  let base = 0.6;
+  if (mode === "conquest") base = 1.0;
+  else if (mode === "tafsir") base = 0.8;
+  else if (mode === "cosmology") base = 0.75;
+  if (/\b(decision|mission|never|always|remember|important)\b/i.test(content)) base = Math.min(1, base + 0.1);
+  return base;
+}
+
+function extractTags(content: string): string[] {
+  const words = content.toLowerCase().match(/\b[a-z]{5,}\b/g) ?? [];
+  const stop = new Set(["which", "their", "there", "about", "would", "could", "should", "these", "those", "where", "while"]);
+  const freq: Record<string, number> = {};
+  for (const w of words) if (!stop.has(w)) freq[w] = (freq[w] ?? 0) + 1;
+  return Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([w]) => w);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { message, user_id = "default", use_archive = false, mode = "wisdom" } = await req.json();
+    const body = await req.json();
+    const message: string = body.message;
+    const user_id: string = body.userId ?? body.user_id ?? "default";
+    const session_id: string | undefined = body.sessionId ?? body.session_id;
+    const mode: string = body.inquiryMode ?? body.mode ?? "wisdom";
+    const use_archive: boolean = body.archiveMode ?? body.use_archive ?? false;
+    const pemfContext = body.pemfContext ?? null;
+
     if (!message) {
       return new Response(JSON.stringify({ error: "message required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -22,61 +53,57 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    await supabase.from("belicia_memory").insert({
-      user_id, role: "user", content: message, importance: 5,
-    });
+    const userImportance = importanceFor(mode, message);
+    const userTags = extractTags(message);
 
-    const { data: recent } = await supabase
+    const { data: userRow } = await supabase.from("belicia_memory").insert({
+      user_id, role: "user", content: message,
+      importance: Math.round(userImportance * 10),
+      session_id, inquiry_mode: mode, memory_type: "exchange",
+      pemf_coherence_at_time: pemfContext?.coherenceScore ?? null,
+      tags: userTags,
+    }).select("id").single();
+
+    // Recent + important history (importance DESC then recency)
+    const { data: history } = await supabase
       .from("belicia_memory")
-      .select("role, content, created_at")
+      .select("role, content, importance, created_at")
       .eq("user_id", user_id)
+      .order("importance", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(20);
 
-    const { data: important } = await supabase
-      .from("belicia_memory")
-      .select("role, content")
-      .eq("user_id", user_id)
-      .gte("importance", 7)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
     const { data: profileRows } = await supabase
-      .from("belicia_profile")
-      .select("*")
-      .eq("user_id", user_id)
-      .limit(1);
+      .from("belicia_profile").select("*").eq("user_id", user_id).limit(1);
     const profile = profileRows?.[0];
 
-    // Stage 1: Retrieve live IA excerpts when archive mode is on
     const iaExcerpts = use_archive ? await fetchIAExcerpts(message, 3, 600) : [];
 
-    // Stage 2: Build Bayt al-Hikmah system prompt
     let system = buildBaytSystemPrompt(mode, iaExcerpts);
 
     if (profile) {
       system += "\n\n## User Profile\n";
-      if (profile.name) system += `Name: ${profile.name}\n`;
+      if (profile.display_name || profile.name) system += `Name: ${profile.display_name ?? profile.name}\n`;
+      if (profile.active_missions?.length) system += `Active missions: ${JSON.stringify(profile.active_missions)}\n`;
+      if (profile.strategic_context) system += `Strategic context: ${profile.strategic_context}\n`;
+      if (profile.spiritual_station) system += `Spiritual station: ${profile.spiritual_station}\n`;
       if (profile.preferences) system += `Preferences: ${JSON.stringify(profile.preferences)}\n`;
-      if (profile.thought_patterns) system += `Communication style: ${JSON.stringify(profile.thought_patterns)}\n`;
-      if (profile.projects) system += `Active projects: ${JSON.stringify(profile.projects)}\n`;
+      if (profile.response_depth) system += `Response depth preference: ${profile.response_depth}\n`;
     }
 
-    // dedupe and build messages
+    if (pemfContext) {
+      system += `\n\n## Current Biofield State\nCoherence: ${pemfContext.coherenceScore}/100 · Recovery: ${pemfContext.recoveryState} · HRV: ${pemfContext.hrvScore}\n`;
+      system += "Calibrate tone to this state. Depleted → brevity & stillness. Peak → full engagement.\n";
+    }
+
+    const ordered = (history ?? []).slice().reverse();
     const seen = new Set<string>();
-    const history: Array<{ role: string; content: string }> = [];
-    for (const m of important ?? []) {
+    const messages: Array<{ role: string; content: string }> = [{ role: "system", content: system }];
+    for (const m of ordered) {
       const k = m.content.slice(0, 80);
-      if (!seen.has(k)) { history.push({ role: m.role, content: m.content }); seen.add(k); }
-    }
-    for (const m of (recent ?? []).slice().reverse()) {
-      const k = m.content.slice(0, 80);
-      if (!seen.has(k)) { history.push({ role: m.role, content: m.content }); seen.add(k); }
+      if (!seen.has(k)) { messages.push({ role: m.role, content: m.content }); seen.add(k); }
     }
 
-    const messages = [{ role: "system", content: system }, ...history];
-
-    // call lovable AI gateway
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -102,17 +129,43 @@ Deno.serve(async (req) => {
     }
 
     const aiData = await aiResp.json();
-    const reply = aiData.choices?.[0]?.message?.content ?? "";
+    const reply: string = aiData.choices?.[0]?.message?.content ?? "";
 
-    await supabase.from("belicia_memory").insert({
-      user_id, role: "assistant", content: reply, importance: 5,
-    });
+    const asstImportance = importanceFor(mode, reply);
+    const { data: asstRow } = await supabase.from("belicia_memory").insert({
+      user_id, role: "assistant", content: reply,
+      importance: Math.round(asstImportance * 10),
+      session_id, inquiry_mode: mode, memory_type: "exchange",
+      pemf_coherence_at_time: pemfContext?.coherenceScore ?? null,
+      tags: extractTags(reply),
+    }).select("id").single();
+
+    // Auto scene trigger (silent, non-blocking)
+    let triggeredScene: string | null = null;
+    for (const t of SCENE_TRIGGERS) {
+      if (t.re.test(reply) || t.re.test(message)) { triggeredScene = t.scene; break; }
+    }
+    if (triggeredScene) {
+      const baseUrl = Deno.env.get("SUPABASE_URL")!;
+      fetch(`${baseUrl}/functions/v1/home-bridge`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({ userId: user_id, command: { type: "scene", action: triggeredScene, params: {} } }),
+      }).catch(() => {});
+    }
 
     return new Response(JSON.stringify({
       response: reply,
-      used_archive: use_archive,
+      sessionId: session_id ?? null,
+      memoryId: asstRow?.id ?? null,
+      userMemoryId: userRow?.id ?? null,
       mode,
-      ia_sources: iaExcerpts.map(e => ({ title: e.source, author: e.author, year: e.year, iaId: e.iaId })),
+      used_archive: use_archive,
+      triggered_scene: triggeredScene,
+      ia_sources: iaExcerpts.map((e) => ({ title: e.source, author: e.author, year: e.year, iaId: e.iaId })),
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

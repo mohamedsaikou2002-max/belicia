@@ -1,1 +1,19 @@
 project_id = "focrrskgrxdkiddajxuq"
+
+[functions.chat]
+verify_jwt = false
+
+[functions.memory]
+verify_jwt = false
+
+[functions.tts]
+verify_jwt = false
+
+[functions.pemf-ingest]
+verify_jwt = false
+
+[functions.home-bridge]
+verify_jwt = false
+
+[functions.daily-brief]
+verify_jwt = false
