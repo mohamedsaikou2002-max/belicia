@@ -29,6 +29,7 @@ const Index = () => {
   const [useArchive, setUseArchive] = useState(false);
   const [mode, setMode] = useState<"wisdom" | "tafsir" | "cosmology" | "ethics" | "conquest">("wisdom");
   const [intensity, setIntensity] = useState(0);
+  const { pemf, connected: pemfConnected } = usePemfState("default");
 
   const recogRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
