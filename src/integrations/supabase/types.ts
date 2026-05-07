@@ -20,7 +20,11 @@ export type Database = {
           created_at: string
           id: string
           importance: number
+          inquiry_mode: string | null
+          memory_type: string | null
+          pemf_coherence_at_time: number | null
           role: string
+          session_id: string | null
           summary: string | null
           tags: string[] | null
           user_id: string
@@ -30,7 +34,11 @@ export type Database = {
           created_at?: string
           id?: string
           importance?: number
+          inquiry_mode?: string | null
+          memory_type?: string | null
+          pemf_coherence_at_time?: number | null
           role: string
+          session_id?: string | null
           summary?: string | null
           tags?: string[] | null
           user_id?: string
@@ -40,7 +48,11 @@ export type Database = {
           created_at?: string
           id?: string
           importance?: number
+          inquiry_mode?: string | null
+          memory_type?: string | null
+          pemf_coherence_at_time?: number | null
           role?: string
+          session_id?: string | null
           summary?: string | null
           tags?: string[] | null
           user_id?: string
@@ -49,30 +61,204 @@ export type Database = {
       }
       belicia_profile: {
         Row: {
+          active_missions: Json
+          avg_session_length_mins: number
+          baseline_hrv: number | null
+          current_pemf_state: Json | null
+          dhikr_preferences: Json
+          display_name: string | null
           id: string
+          key_relationships: Json
+          language_register: string | null
+          madhab: string | null
           name: string | null
+          peak_focus_windows: Json
+          pemf_enabled: boolean
+          pemf_morning_protocol: string | null
+          pemf_sleep_protocol: string | null
+          prayer_location: Json | null
           preferences: Json
+          preferred_inquiry_mode: string | null
+          preferred_suggestion_density: string | null
           projects: Json
+          push_subscription: Json | null
+          response_depth: string | null
+          spiritual_station: string | null
+          strategic_context: string | null
           thought_patterns: Json
+          timezone: string | null
           updated_at: string
+          user_id: string
+          voice_profile: string | null
+        }
+        Insert: {
+          active_missions?: Json
+          avg_session_length_mins?: number
+          baseline_hrv?: number | null
+          current_pemf_state?: Json | null
+          dhikr_preferences?: Json
+          display_name?: string | null
+          id?: string
+          key_relationships?: Json
+          language_register?: string | null
+          madhab?: string | null
+          name?: string | null
+          peak_focus_windows?: Json
+          pemf_enabled?: boolean
+          pemf_morning_protocol?: string | null
+          pemf_sleep_protocol?: string | null
+          prayer_location?: Json | null
+          preferences?: Json
+          preferred_inquiry_mode?: string | null
+          preferred_suggestion_density?: string | null
+          projects?: Json
+          push_subscription?: Json | null
+          response_depth?: string | null
+          spiritual_station?: string | null
+          strategic_context?: string | null
+          thought_patterns?: Json
+          timezone?: string | null
+          updated_at?: string
+          user_id?: string
+          voice_profile?: string | null
+        }
+        Update: {
+          active_missions?: Json
+          avg_session_length_mins?: number
+          baseline_hrv?: number | null
+          current_pemf_state?: Json | null
+          dhikr_preferences?: Json
+          display_name?: string | null
+          id?: string
+          key_relationships?: Json
+          language_register?: string | null
+          madhab?: string | null
+          name?: string | null
+          peak_focus_windows?: Json
+          pemf_enabled?: boolean
+          pemf_morning_protocol?: string | null
+          pemf_sleep_protocol?: string | null
+          prayer_location?: Json | null
+          preferences?: Json
+          preferred_inquiry_mode?: string | null
+          preferred_suggestion_density?: string | null
+          projects?: Json
+          push_subscription?: Json | null
+          response_depth?: string | null
+          spiritual_station?: string | null
+          strategic_context?: string | null
+          thought_patterns?: Json
+          timezone?: string | null
+          updated_at?: string
+          user_id?: string
+          voice_profile?: string | null
+        }
+        Relationships: []
+      }
+      home_commands: {
+        Row: {
+          command: Json
+          executed_at: string
+          id: string
+          status: string | null
           user_id: string
         }
         Insert: {
+          command?: Json
+          executed_at?: string
           id?: string
-          name?: string | null
-          preferences?: Json
-          projects?: Json
-          thought_patterns?: Json
-          updated_at?: string
+          status?: string | null
           user_id?: string
         }
         Update: {
+          command?: Json
+          executed_at?: string
           id?: string
-          name?: string | null
-          preferences?: Json
-          projects?: Json
-          thought_patterns?: Json
-          updated_at?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pemf_readings: {
+        Row: {
+          ambient_field_delta: number | null
+          coherence_score: number | null
+          created_at: string
+          dominant_frequency: number | null
+          hrv_score: number | null
+          id: string
+          notes: string | null
+          raw_data: Json | null
+          recovery_state: string | null
+          session_type: string | null
+          stress_index: number | null
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          ambient_field_delta?: number | null
+          coherence_score?: number | null
+          created_at?: string
+          dominant_frequency?: number | null
+          hrv_score?: number | null
+          id?: string
+          notes?: string | null
+          raw_data?: Json | null
+          recovery_state?: string | null
+          session_type?: string | null
+          stress_index?: number | null
+          timestamp?: string
+          user_id?: string
+        }
+        Update: {
+          ambient_field_delta?: number | null
+          coherence_score?: number | null
+          created_at?: string
+          dominant_frequency?: number | null
+          hrv_score?: number | null
+          id?: string
+          notes?: string | null
+          raw_data?: Json | null
+          recovery_state?: string | null
+          session_type?: string | null
+          stress_index?: number | null
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      scheduled_briefs: {
+        Row: {
+          brief_type: string | null
+          content: string | null
+          created_at: string
+          delivered_at: string | null
+          delivery_channel: string | null
+          id: string
+          scheduled_for: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          brief_type?: string | null
+          content?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_channel?: string | null
+          id?: string
+          scheduled_for?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          brief_type?: string | null
+          content?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_channel?: string | null
+          id?: string
+          scheduled_for?: string | null
+          status?: string
           user_id?: string
         }
         Relationships: []
