@@ -237,6 +237,13 @@ const Index = () => {
             Archive RAG
             <Switch checked={useArchive} onCheckedChange={setUseArchive} />
           </label>
+          <button
+            onClick={() => setShowCompressor(true)}
+            className="text-[11px] tracking-[0.3em] border border-white/30 text-white/80 px-3 py-1 hover:bg-white hover:text-black transition"
+            title="Intel Compressor (Ctrl/Cmd+I)"
+          >
+            ⊕ INTEL
+          </button>
           <Button variant="ghost" size="icon" onClick={() => setVoiceOn(v => !v)} title="Toggle voice">
             {voiceOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </Button>
