@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Mic, MicOff, Send, Trash2, Volume2, VolumeX, Archive } from "lucide-react";
 import { toast } from "sonner";
+import { BeliciaIntelCompressor } from "@/components/IntelCompressor/BeliciaIntelCompressor";
 
 type Msg = { role: "user" | "assistant"; content: string; created_at?: string };
 
@@ -30,6 +31,18 @@ const Index = () => {
   const [mode, setMode] = useState<"wisdom" | "tafsir" | "cosmology" | "ethics" | "conquest">("wisdom");
   const [intensity, setIntensity] = useState(0);
   const { pemf, connected: pemfConnected } = usePemfState("default");
+  const [showCompressor, setShowCompressor] = useState(false);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "i") {
+        e.preventDefault();
+        setShowCompressor((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []);
 
   const recogRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -224,6 +237,13 @@ const Index = () => {
             Archive RAG
             <Switch checked={useArchive} onCheckedChange={setUseArchive} />
           </label>
+          <button
+            onClick={() => setShowCompressor(true)}
+            className="text-[11px] tracking-[0.3em] border border-white/30 text-white/80 px-3 py-1 hover:bg-white hover:text-black transition"
+            title="Intel Compressor (Ctrl/Cmd+I)"
+          >
+            ⊕ INTEL
+          </button>
           <Button variant="ghost" size="icon" onClick={() => setVoiceOn(v => !v)} title="Toggle voice">
             {voiceOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </Button>
@@ -323,6 +343,7 @@ const Index = () => {
           </form>
         </aside>
       </section>
+      {showCompressor && <BeliciaIntelCompressor onClose={() => setShowCompressor(false)} />}
     </main>
   );
 };
