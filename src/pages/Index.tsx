@@ -31,6 +31,18 @@ const Index = () => {
   const [mode, setMode] = useState<"wisdom" | "tafsir" | "cosmology" | "ethics" | "conquest">("wisdom");
   const [intensity, setIntensity] = useState(0);
   const { pemf, connected: pemfConnected } = usePemfState("default");
+  const [showCompressor, setShowCompressor] = useState(false);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "i") {
+        e.preventDefault();
+        setShowCompressor((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []);
 
   const recogRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
