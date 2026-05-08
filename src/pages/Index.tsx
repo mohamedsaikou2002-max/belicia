@@ -343,6 +343,7 @@ const Index = () => {
           </form>
         </aside>
       </section>
+      {showCompressor && <BeliciaIntelCompressor onClose={() => setShowCompressor(false)} />}
     </main>
   );
 };
