@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.daily-brief]
 verify_jwt = false
+
+[functions.intel-archive]
+verify_jwt = false
+
+[functions.intel-distill]
+verify_jwt = false
