@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Mic, MicOff, Send, Trash2, Volume2, VolumeX, Archive } from "lucide-react";
 import { toast } from "sonner";
+import { BeliciaIntelCompressor } from "@/components/IntelCompressor/BeliciaIntelCompressor";
 
 type Msg = { role: "user" | "assistant"; content: string; created_at?: string };
 
