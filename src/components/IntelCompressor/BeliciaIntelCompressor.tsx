@@ -143,7 +143,7 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
       setOutput("");
       let acc = "";
       await streamDistill(
-        { mode: "single", text: data.text, source_title: urlInput, block_mode: "full" },
+        { mode: "single", text: data.text, source_title: urlInput, block_mode: "full", focus: urlFocus },
         (d) => { acc += d; setOutput(acc); },
         () => setStreaming(false),
         (e) => { setOutput(acc + "\n\n[ERROR] " + e); setStreaming(false); },
