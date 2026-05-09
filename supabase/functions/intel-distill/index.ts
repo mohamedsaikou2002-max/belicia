@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       const summaries = body.summaries || [];
       const sourceTitle = body.source_title || "Unknown Source";
       if (!summaries.length) return new Response(JSON.stringify({ error: "no summaries" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      const combined = summaries.map((s: any) => `CHAPTER: ${s.chapter_title || "Unknown"}\n${s.distillation || ""}`).join("\n\n---\n\n").slice(0, 10000);
+      const combined = summaries.map((s: any) => `CHAPTER: ${s.chapter_title || "Unknown"}\n${s.distillation || ""}`).join("\n\n---\n\n");
       const userMessage = `CROSS-CHAPTER SYNTHESIS for "${sourceTitle}":
 
 You have distilled ${summaries.length} chapters. Produce a MASTER SYNTHESIS strictly internal to this source — do NOT reference outside frameworks, projects, or external context:
