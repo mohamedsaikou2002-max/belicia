@@ -71,6 +71,7 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
   // paste / url
   const [pasteText, setPasteText] = useState("");
   const [urlInput, setUrlInput] = useState("");
+  const [urlFocus, setUrlFocus] = useState("");
 
   // distillation
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
