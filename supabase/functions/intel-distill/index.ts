@@ -28,18 +28,18 @@ COMPRESSION RATIO: [X]% noise
 
 STYLE: Maximum semantic density. No padding. No preamble. No outside references. Start with substance. Stay inside the source.`;
 
-async function streamAnthropic(userMessage: string, maxTokens = 16000): Promise<Response> {
+// Approx 1 token ≈ 3.5 chars. Anthropic input cap = 1M tokens. Stay well under.
+const MAX_INPUT_CHARS = 2_800_000;
+
+async function callAnthropicStream(userMessage: string, maxTokens: number, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) {
-    return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    controller.enqueue(enc.encode(`data: ERROR: ANTHROPIC_API_KEY not configured\n\n`));
+    return;
   }
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: {
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       max_tokens: maxTokens,
@@ -48,38 +48,62 @@ async function streamAnthropic(userMessage: string, maxTokens = 16000): Promise<
       messages: [{ role: "user", content: userMessage }],
     }),
   });
-
   if (!r.ok || !r.body) {
     const t = await r.text();
-    return new Response(`data: ERROR: ${t}\n\n`, { status: 200, headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
+    controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
+    return;
   }
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf("\n")) !== -1) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload) continue;
+      try {
+        const evt = JSON.parse(payload);
+        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+          controller.enqueue(enc.encode(`data: ${evt.delta.text}\n\n`));
+        }
+      } catch { /* ignore */ }
+    }
+  }
+}
 
-  // Transform Anthropic SSE -> simple `data: <text>\n\n` stream that the component already expects
+function chunkText(text: string, maxChars: number): string[] {
+  if (text.length <= maxChars) return [text];
+  const chunks: string[] = [];
+  let i = 0;
+  while (i < text.length) {
+    let end = Math.min(i + maxChars, text.length);
+    if (end < text.length) {
+      // try to break on paragraph/sentence
+      const slice = text.slice(i, end);
+      const breakAt = Math.max(slice.lastIndexOf("\n\n"), slice.lastIndexOf(". "));
+      if (breakAt > maxChars * 0.6) end = i + breakAt;
+    }
+    chunks.push(text.slice(i, end));
+    i = end;
+  }
+  return chunks;
+}
+
+function streamMany(messages: { header?: string; user: string; maxTokens: number }[]): Response {
   const stream = new ReadableStream({
     async start(controller) {
-      const reader = r.body!.getReader();
-      const dec = new TextDecoder();
       const enc = new TextEncoder();
-      let buf = "";
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += dec.decode(value, { stream: true });
-          let nl;
-          while ((nl = buf.indexOf("\n")) !== -1) {
-            const line = buf.slice(0, nl).trim();
-            buf = buf.slice(nl + 1);
-            if (!line.startsWith("data:")) continue;
-            const payload = line.slice(5).trim();
-            if (!payload) continue;
-            try {
-              const evt = JSON.parse(payload);
-              if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-                controller.enqueue(enc.encode(`data: ${evt.delta.text}\n\n`));
-              }
-            } catch { /* ignore */ }
-          }
+        for (let i = 0; i < messages.length; i++) {
+          const m = messages[i];
+          if (m.header) controller.enqueue(enc.encode(`data: ${m.header}\n\n`));
+          await callAnthropicStream(m.user, m.maxTokens, controller, enc);
         }
         controller.enqueue(enc.encode("data: [DONE]\n\n"));
       } catch (e) {
@@ -89,7 +113,6 @@ async function streamAnthropic(userMessage: string, maxTokens = 16000): Promise<
       }
     },
   });
-
   return new Response(stream, {
     headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Accel-Buffering": "no" },
   });
