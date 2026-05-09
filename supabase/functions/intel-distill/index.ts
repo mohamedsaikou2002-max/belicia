@@ -9,7 +9,7 @@ const SYSTEM_PROMPT = `You are a high-density distillation engine. Your task: co
 
 DISTILLATION OUTPUT FORMAT — follow this exactly:
 
-LOAD-BEARING IDEAS (3–5 max):
+LOAD-BEARING IDEAS:
 [Only structural concepts internal to this source. What holds the whole argument up. One sentence each.]
 
 KEY CLAIMS & EVIDENCE:
