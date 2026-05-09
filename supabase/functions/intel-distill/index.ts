@@ -28,7 +28,7 @@ COMPRESSION RATIO: [X]% noise
 
 STYLE: Maximum semantic density. No padding. No preamble. No outside references. Start with substance. Stay inside the source.`;
 
-async function streamAnthropic(userMessage: string, maxTokens = 1000): Promise<Response> {
+async function streamAnthropic(userMessage: string, maxTokens = 16000): Promise<Response> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) {
     return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
