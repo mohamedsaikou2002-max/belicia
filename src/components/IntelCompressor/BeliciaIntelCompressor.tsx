@@ -289,6 +289,13 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
                 placeholder="https://…"
                 className="w-full bg-transparent border border-white/20 px-3 py-2 text-xs focus:outline-none focus:border-white"
               />
+              <div className="text-[10px] tracking-[0.3em] text-white/40 pt-1">FOCUS / RESEARCH QUERY (OPTIONAL)</div>
+              <textarea
+                value={urlFocus}
+                onChange={(e) => setUrlFocus(e.target.value)}
+                placeholder="e.g. only the section on pricing tiers, or: extract claims about latency benchmarks…"
+                className="w-full h-32 bg-transparent border border-white/20 p-3 text-xs focus:outline-none focus:border-white resize-none"
+              />
               <button
                 onClick={distillUrl}
                 disabled={streaming || !urlInput.trim()}
