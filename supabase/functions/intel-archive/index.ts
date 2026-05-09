@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
                  .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
                  .replace(/<[^>]+>/g, " ")
                  .replace(/\s+/g, " ").trim();
-      const words = html.split(" ").slice(0, 8000);
+      const words = html.split(" ").slice(0, 30000);
       return new Response(JSON.stringify({ url, source: target === url ? "direct" : "wayback", word_count: words.length, text: words.join(" ") }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
