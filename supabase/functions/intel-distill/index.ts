@@ -125,19 +125,19 @@ ${combined}`;
     const sourceTitle = body.source_title || "Unknown Source";
     const chapterTitle = body.chapter_title || "";
     const blockMode = body.block_mode || "chapter";
+    const focus = String(body.focus || "").trim();
     if (!text) return new Response(JSON.stringify({ error: "no text" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const truncated = text.slice(0, 12000);
     const userMessage = `DISTILL THIS ${blockMode === "chapter" ? "CHAPTER" : "SOURCE"}:
 
 Source: "${sourceTitle}"
 ${chapterTitle ? `Chapter: ${chapterTitle}` : ""}
-
+${focus ? `\nFOCUS DIRECTIVE — distill ONLY content relevant to:\n${focus}\nIgnore unrelated material. If nothing in the source matches, say so explicitly.\n` : ""}
 ---
-${truncated}
+${text}
 ---
 
-Produce the full distillation output.`;
-    return await streamAnthropic(userMessage, 1000);
+Produce the full distillation. No length cap — be as long as needed, but every sentence must carry weight. Maximum density, zero padding.`;
+    return await streamAnthropic(userMessage, 16000);
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
