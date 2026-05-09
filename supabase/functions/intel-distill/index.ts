@@ -108,12 +108,12 @@ Deno.serve(async (req) => {
       const combined = summaries.map((s: any) => `CHAPTER: ${s.chapter_title || "Unknown"}\n${s.distillation || ""}`).join("\n\n---\n\n").slice(0, 10000);
       const userMessage = `CROSS-CHAPTER SYNTHESIS for "${sourceTitle}":
 
-You have distilled ${summaries.length} chapters. Now produce a MASTER SYNTHESIS:
+You have distilled ${summaries.length} chapters. Produce a MASTER SYNTHESIS strictly internal to this source — do NOT reference outside frameworks, projects, or external context:
 
 1. BOOK-LEVEL LOAD-BEARING THESIS (1–2 sentences max)
-2. CUMULATIVE SCHEMA DELTA (what's genuinely new across the whole book)
-3. STRONGEST CROSS-DOMAIN BRIDGES (top 3, specific to Mohamed's frameworks)
-4. PRIORITY PROJECT IMPLICATIONS (ranked by impact)
+2. CORE ARGUMENTATIVE ARC (how the book builds its case across chapters)
+3. KEY CLAIMS & EVIDENCE (strongest, most load-bearing across the whole work)
+4. INTERNAL TENSIONS / OPEN QUESTIONS the book raises but does not close
 5. OVERALL COMPRESSION RATIO
 
 Previous chapter distillations:
