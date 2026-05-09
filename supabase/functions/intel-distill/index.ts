@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
 
 You have distilled ${summaries.length} chapters. Produce a MASTER SYNTHESIS strictly internal to this source — do NOT reference outside frameworks, projects, or external context:
 
-1. BOOK-LEVEL LOAD-BEARING THESIS (1–2 sentences max)
+1. BOOK-LEVEL LOAD-BEARING THESIS
 2. CORE ARGUMENTATIVE ARC (how the book builds its case across chapters)
 3. KEY CLAIMS & EVIDENCE (strongest, most load-bearing across the whole work)
 4. INTERNAL TENSIONS / OPEN QUESTIONS the book raises but does not close
