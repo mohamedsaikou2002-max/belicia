@@ -118,7 +118,7 @@ You have distilled ${summaries.length} chapters. Produce a MASTER SYNTHESIS stri
 
 Previous chapter distillations:
 ${combined}`;
-      return await streamAnthropic(userMessage, 1200);
+      return await streamAnthropic(userMessage, 16000);
     }
 
     const text = String(body.text || "");
