@@ -28,7 +28,7 @@ COMPRESSION RATIO: [X]% noise
 
 STYLE: Maximum semantic density. No padding. No preamble. No outside references. Start with substance. Stay inside the source.`;
 
-async function streamAnthropic(userMessage: string, maxTokens = 1000): Promise<Response> {
+async function streamAnthropic(userMessage: string, maxTokens = 16000): Promise<Response> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) {
     return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -118,26 +118,26 @@ You have distilled ${summaries.length} chapters. Produce a MASTER SYNTHESIS stri
 
 Previous chapter distillations:
 ${combined}`;
-      return await streamAnthropic(userMessage, 1200);
+      return await streamAnthropic(userMessage, 16000);
     }
 
     const text = String(body.text || "");
     const sourceTitle = body.source_title || "Unknown Source";
     const chapterTitle = body.chapter_title || "";
     const blockMode = body.block_mode || "chapter";
+    const focus = String(body.focus || "").trim();
     if (!text) return new Response(JSON.stringify({ error: "no text" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const truncated = text.slice(0, 12000);
     const userMessage = `DISTILL THIS ${blockMode === "chapter" ? "CHAPTER" : "SOURCE"}:
 
 Source: "${sourceTitle}"
 ${chapterTitle ? `Chapter: ${chapterTitle}` : ""}
-
+${focus ? `\nFOCUS DIRECTIVE — distill ONLY content relevant to:\n${focus}\nIgnore unrelated material. If nothing in the source matches, say so explicitly.\n` : ""}
 ---
-${truncated}
+${text}
 ---
 
-Produce the full distillation output.`;
-    return await streamAnthropic(userMessage, 1000);
+Produce the full distillation. No length cap — be as long as needed, but every sentence must carry weight. Maximum density, zero padding.`;
+    return await streamAnthropic(userMessage, 16000);
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }

@@ -71,6 +71,7 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
   // paste / url
   const [pasteText, setPasteText] = useState("");
   const [urlInput, setUrlInput] = useState("");
+  const [urlFocus, setUrlFocus] = useState("");
 
   // distillation
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
@@ -142,7 +143,7 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
       setOutput("");
       let acc = "";
       await streamDistill(
-        { mode: "single", text: data.text, source_title: urlInput, block_mode: "full" },
+        { mode: "single", text: data.text, source_title: urlInput, block_mode: "full", focus: urlFocus },
         (d) => { acc += d; setOutput(acc); },
         () => setStreaming(false),
         (e) => { setOutput(acc + "\n\n[ERROR] " + e); setStreaming(false); },
@@ -287,6 +288,13 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
                 onChange={(e) => setUrlInput(e.target.value)}
                 placeholder="https://…"
                 className="w-full bg-transparent border border-white/20 px-3 py-2 text-xs focus:outline-none focus:border-white"
+              />
+              <div className="text-[10px] tracking-[0.3em] text-white/40 pt-1">FOCUS / RESEARCH QUERY (OPTIONAL)</div>
+              <textarea
+                value={urlFocus}
+                onChange={(e) => setUrlFocus(e.target.value)}
+                placeholder="e.g. only the section on pricing tiers, or: extract claims about latency benchmarks…"
+                className="w-full h-32 bg-transparent border border-white/20 p-3 text-xs focus:outline-none focus:border-white resize-none"
               />
               <button
                 onClick={distillUrl}
