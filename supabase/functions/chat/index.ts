@@ -129,7 +129,29 @@ Deno.serve(async (req) => {
     }
 
     const aiData = await aiResp.json();
-    const reply: string = aiData.choices?.[0]?.message?.content ?? "";
+    let reply: string = aiData.choices?.[0]?.message?.content ?? "";
+    const finishReason = aiData.choices?.[0]?.finish_reason ?? null;
+    console.log("AI finish_reason:", finishReason, "reply length:", reply.length);
+
+    // Fallback if model returns empty (e.g. safety filter or content policy)
+    if (!reply || !reply.trim()) {
+      console.warn("Empty reply from primary model, retrying with fallback model");
+      const fallback = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model: "google/gemini-2.5-pro", messages }),
+      });
+      if (fallback.ok) {
+        const fb = await fallback.json();
+        reply = fb.choices?.[0]?.message?.content ?? "";
+      }
+      if (!reply || !reply.trim()) {
+        reply = "I cannot speak to that one right now — the question pressed against a content filter and the answer came back empty. Try rephrasing it, or ask me to approach it from a theological, ethical, or fiqh angle and I will respond.";
+      }
+    }
 
     const asstImportance = importanceFor(mode, reply);
     const { data: asstRow } = await supabase.from("belicia_memory").insert({
