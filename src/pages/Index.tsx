@@ -6,7 +6,7 @@ import { usePemfState } from "@/hooks/usePemfState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Mic, MicOff, Send, Trash2, Volume2, VolumeX, Archive } from "lucide-react";
+import { Mic, MicOff, Send, Trash2, Volume2, VolumeX, Archive, Plus, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { BeliciaIntelCompressor } from "@/components/IntelCompressor/BeliciaIntelCompressor";
 
@@ -32,6 +32,54 @@ const Index = () => {
   const [intensity, setIntensity] = useState(0);
   const { pemf, connected: pemfConnected } = usePemfState("default");
   const [showCompressor, setShowCompressor] = useState(false);
+  const [sessionId, setSessionId] = useState<string>(() => {
+    const saved = localStorage.getItem("belicia_session_id");
+    if (saved) return saved;
+    const fresh = crypto.randomUUID();
+    localStorage.setItem("belicia_session_id", fresh);
+    return fresh;
+  });
+  const [sessions, setSessions] = useState<Array<{ session_id: string; preview: string; last: string }>>([]);
+  const [showSessions, setShowSessions] = useState(false);
+
+  const SUPA_URL = "https://focrrskgrxdkiddajxuq.supabase.co";
+  const SUPA_HEADERS = {
+    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+  };
+
+  const loadSessions = useCallback(async () => {
+    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=sessions`, { headers: SUPA_HEADERS });
+    if (r.ok) {
+      const j = await r.json();
+      setSessions(j.sessions ?? []);
+    }
+  }, []);
+
+  const loadSessionMessages = useCallback(async (sid: string) => {
+    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=recent&session_id=${sid}`, { headers: SUPA_HEADERS });
+    if (r.ok) {
+      const j = await r.json();
+      setMessages(j.messages ?? []);
+    }
+  }, []);
+
+  const newChat = useCallback(() => {
+    const fresh = crypto.randomUUID();
+    localStorage.setItem("belicia_session_id", fresh);
+    setSessionId(fresh);
+    setMessages([]);
+    setShowSessions(false);
+    toast.success("New chat started");
+    loadSessions();
+  }, [loadSessions]);
+
+  const switchSession = useCallback((sid: string) => {
+    localStorage.setItem("belicia_session_id", sid);
+    setSessionId(sid);
+    loadSessionMessages(sid);
+    setShowSessions(false);
+  }, [loadSessionMessages]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -65,22 +113,11 @@ const Index = () => {
     return true;
   }, []);
 
-  // load history once
+  // load history for current session
   useEffect(() => {
-    (async () => {
-      const url = `https://focrrskgrxdkiddajxuq.supabase.co/functions/v1/memory?action=recent`;
-      const r = await fetch(url, {
-        headers: {
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-      });
-      if (r.ok) {
-        const j = await r.json();
-        setMessages(j.messages ?? []);
-      }
-    })();
-  }, []);
+    loadSessionMessages(sessionId);
+    loadSessions();
+  }, [sessionId, loadSessionMessages, loadSessions]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 1e9, behavior: "smooth" });
@@ -136,6 +173,7 @@ const Index = () => {
         body: {
           message,
           userId: "default",
+          sessionId,
           archiveMode: useArchive,
           inquiryMode: mode,
           pemfContext: pemf ? {
@@ -150,13 +188,14 @@ const Index = () => {
       const reply = (data as any).response as string;
       setMessages(m => [...m, { role: "assistant", content: reply }]);
       speak(reply);
+      loadSessions();
     } catch (e: any) {
       toast.error(e.message || "Belicia hit an error");
     } finally {
       setSending(false);
       setIntensity(0);
     }
-  }, [sending, useArchive, mode, speak]);
+  }, [sending, useArchive, mode, speak, sessionId, pemf, loadSessions]);
 
   // voice input
   const toggleListen = useCallback(() => {
@@ -244,6 +283,39 @@ const Index = () => {
           >
             ⊕ INTEL
           </button>
+          <button
+            onClick={newChat}
+            className="flex items-center gap-1 text-[11px] tracking-[0.2em] border border-white/30 text-white/80 px-2 py-1 hover:bg-white hover:text-black transition"
+            title="Start a fresh chat"
+          >
+            <Plus className="w-3 h-3" /> NEW
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => { setShowSessions(v => !v); if (!showSessions) loadSessions(); }}
+              className="flex items-center gap-1 text-[11px] tracking-[0.2em] border border-white/30 text-white/80 px-2 py-1 hover:bg-white hover:text-black transition"
+              title="Switch chat"
+            >
+              <MessageSquare className="w-3 h-3" /> CHATS
+            </button>
+            {showSessions && (
+              <div className="absolute right-0 top-full mt-1 w-72 max-h-80 overflow-y-auto bg-black border border-white/30 z-50 shadow-xl">
+                {sessions.length === 0 && (
+                  <div className="px-3 py-3 text-xs text-white/40">No prior chats</div>
+                )}
+                {sessions.map(s => (
+                  <button
+                    key={s.session_id}
+                    onClick={() => switchSession(s.session_id)}
+                    className={`w-full text-left px-3 py-2 text-xs border-b border-white/10 hover:bg-white/10 transition ${s.session_id === sessionId ? "bg-white/10 text-white" : "text-white/70"}`}
+                  >
+                    <div className="truncate">{s.preview || "(empty)"}</div>
+                    <div className="text-[10px] text-white/40 mt-0.5">{new Date(s.last).toLocaleString()}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Button variant="ghost" size="icon" onClick={() => setVoiceOn(v => !v)} title="Toggle voice">
             {voiceOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </Button>
