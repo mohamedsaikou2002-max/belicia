@@ -179,6 +179,30 @@ export type Database = {
         }
         Relationships: []
       }
+      mirofish_sims: {
+        Row: {
+          created_at: string
+          id: string
+          state: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          state?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          state?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pemf_readings: {
         Row: {
           ambient_field_delta: number | null
