@@ -117,45 +117,79 @@ Deno.serve(async (req) => {
       if (!seen.has(k)) { messages.push({ role: m.role, content: m.content }); seen.add(k); }
     }
 
-    // Cascade through models — OpenAI first (less prone to silent safety blanks), then Gemini fallbacks.
-    const modelChain = ["openai/gpt-5-mini", "openai/gpt-5", "google/gemini-2.5-pro", "google/gemini-2.5-flash"];
+    // PRIMARY: Anthropic Claude (Sonnet 4.6) — direct API.
+    // FALLBACKS: cascade through Lovable AI Gateway if Claude fails or returns empty.
     let reply = "";
     let lastStatus = 0;
     let lastErrText = "";
 
-    for (const model of modelChain) {
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ model, messages }),
-      });
-      lastStatus = r.status;
-
-      if (r.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit, try again shortly." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (ANTHROPIC_KEY) {
+      try {
+        const sysMsg = messages.find((m) => m.role === "system")?.content ?? "";
+        const convo = messages
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({ role: m.role, content: m.content }));
+        const ar = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": ANTHROPIC_KEY,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-6",
+            max_tokens: 4096,
+            system: sysMsg,
+            messages: convo,
+          }),
         });
+        lastStatus = ar.status;
+        if (ar.ok) {
+          const aj = await ar.json();
+          const candidate = (aj.content ?? []).map((c: any) => c.text ?? "").join("");
+          console.log("Claude stop_reason:", aj.stop_reason, "len:", candidate.length);
+          if (candidate.trim()) reply = candidate;
+        } else {
+          lastErrText = await ar.text();
+          console.error("Claude failed:", ar.status, lastErrText);
+        }
+      } catch (e) {
+        console.error("Claude exception:", e);
       }
-      if (r.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (!r.ok) {
-        lastErrText = await r.text();
-        console.error(`Model ${model} failed:`, r.status, lastErrText);
-        continue;
-      }
+    }
 
-      const j = await r.json();
-      const candidate = j.choices?.[0]?.message?.content ?? "";
-      console.log(`Model ${model} finish_reason:`, j.choices?.[0]?.finish_reason, "len:", candidate.length);
-      if (candidate && candidate.trim()) {
-        reply = candidate;
-        break;
+    if (!reply.trim()) {
+      const modelChain = ["openai/gpt-5-mini", "openai/gpt-5", "google/gemini-2.5-pro", "google/gemini-2.5-flash"];
+      for (const model of modelChain) {
+        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ model, messages }),
+        });
+        lastStatus = r.status;
+        if (r.status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limit, try again shortly." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (r.status === 402) {
+          return new Response(JSON.stringify({ error: "AI credits exhausted." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (!r.ok) {
+          lastErrText = await r.text();
+          console.error(`Model ${model} failed:`, r.status, lastErrText);
+          continue;
+        }
+        const j = await r.json();
+        const candidate = j.choices?.[0]?.message?.content ?? "";
+        console.log(`Model ${model} finish_reason:`, j.choices?.[0]?.finish_reason, "len:", candidate.length);
+        if (candidate && candidate.trim()) { reply = candidate; break; }
       }
     }
 
