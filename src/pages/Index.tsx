@@ -283,6 +283,39 @@ const Index = () => {
           >
             ⊕ INTEL
           </button>
+          <button
+            onClick={newChat}
+            className="flex items-center gap-1 text-[11px] tracking-[0.2em] border border-white/30 text-white/80 px-2 py-1 hover:bg-white hover:text-black transition"
+            title="Start a fresh chat"
+          >
+            <Plus className="w-3 h-3" /> NEW
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => { setShowSessions(v => !v); if (!showSessions) loadSessions(); }}
+              className="flex items-center gap-1 text-[11px] tracking-[0.2em] border border-white/30 text-white/80 px-2 py-1 hover:bg-white hover:text-black transition"
+              title="Switch chat"
+            >
+              <MessageSquare className="w-3 h-3" /> CHATS
+            </button>
+            {showSessions && (
+              <div className="absolute right-0 top-full mt-1 w-72 max-h-80 overflow-y-auto bg-black border border-white/30 z-50 shadow-xl">
+                {sessions.length === 0 && (
+                  <div className="px-3 py-3 text-xs text-white/40">No prior chats</div>
+                )}
+                {sessions.map(s => (
+                  <button
+                    key={s.session_id}
+                    onClick={() => switchSession(s.session_id)}
+                    className={`w-full text-left px-3 py-2 text-xs border-b border-white/10 hover:bg-white/10 transition ${s.session_id === sessionId ? "bg-white/10 text-white" : "text-white/70"}`}
+                  >
+                    <div className="truncate">{s.preview || "(empty)"}</div>
+                    <div className="text-[10px] text-white/40 mt-0.5">{new Date(s.last).toLocaleString()}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Button variant="ghost" size="icon" onClick={() => setVoiceOn(v => !v)} title="Toggle voice">
             {voiceOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </Button>
