@@ -113,22 +113,11 @@ const Index = () => {
     return true;
   }, []);
 
-  // load history once
+  // load history for current session
   useEffect(() => {
-    (async () => {
-      const url = `https://focrrskgrxdkiddajxuq.supabase.co/functions/v1/memory?action=recent`;
-      const r = await fetch(url, {
-        headers: {
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-      });
-      if (r.ok) {
-        const j = await r.json();
-        setMessages(j.messages ?? []);
-      }
-    })();
-  }, []);
+    loadSessionMessages(sessionId);
+    loadSessions();
+  }, [sessionId, loadSessionMessages, loadSessions]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 1e9, behavior: "smooth" });
