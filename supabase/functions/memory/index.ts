@@ -20,13 +20,41 @@ Deno.serve(async (req) => {
 
     if (req.method === "GET") {
       if (action === "recent") {
+        const session_id = url.searchParams.get("session_id");
+        let q = supabase
+          .from("belicia_memory")
+          .select("role, content, created_at, session_id")
+          .eq("user_id", user_id);
+        if (session_id) q = q.eq("session_id", session_id);
+        const { data } = await q.order("created_at", { ascending: false }).limit(100);
+        return new Response(JSON.stringify({ messages: (data ?? []).reverse() }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (action === "sessions") {
+        // List distinct sessions with first-message preview + last activity
         const { data } = await supabase
           .from("belicia_memory")
-          .select("role, content, created_at")
+          .select("session_id, content, role, created_at")
           .eq("user_id", user_id)
+          .not("session_id", "is", null)
           .order("created_at", { ascending: false })
-          .limit(50);
-        return new Response(JSON.stringify({ messages: (data ?? []).reverse() }), {
+          .limit(500);
+        const map = new Map<string, { session_id: string; preview: string; last: string; first: string }>();
+        for (const row of (data ?? [])) {
+          const sid = row.session_id as string;
+          if (!sid) continue;
+          const existing = map.get(sid);
+          if (!existing) {
+            map.set(sid, { session_id: sid, preview: row.content.slice(0, 80), last: row.created_at, first: row.created_at });
+          } else {
+            // rows arrive newest-first → keep updating preview to the OLDEST user message we see
+            if (row.role === "user") existing.preview = row.content.slice(0, 80);
+            existing.first = row.created_at;
+          }
+        }
+        const sessions = Array.from(map.values()).sort((a, b) => b.last.localeCompare(a.last));
+        return new Response(JSON.stringify({ sessions }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
