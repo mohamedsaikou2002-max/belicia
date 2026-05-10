@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound.tsx";
 import Briefs from "./pages/Briefs.tsx";
 import ProfilePage from "./pages/Profile.tsx";
 import HomePage from "./pages/Home.tsx";
+import MiroFish from "./pages/MiroFish.tsx";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/briefs" element={<Briefs />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/home" element={<HomePage />} />
+          <Route path="/mirofish" element={<MiroFish />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

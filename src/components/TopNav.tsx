@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 const LINKS = [
   { to: "/", label: "ORB" },
   { to: "/briefs", label: "BRIEFS" },
+  { to: "/mirofish", label: "🐟 MIROFISH" },
   { to: "/profile", label: "PROFILE" },
   { to: "/home", label: "HOME" },
 ];
