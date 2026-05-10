@@ -196,16 +196,6 @@ const Index = () => {
       setIntensity(0);
     }
   }, [sending, useArchive, mode, speak, sessionId, pemf, loadSessions]);
-      const reply = (data as any).response as string;
-      setMessages(m => [...m, { role: "assistant", content: reply }]);
-      speak(reply);
-    } catch (e: any) {
-      toast.error(e.message || "Belicia hit an error");
-    } finally {
-      setSending(false);
-      setIntensity(0);
-    }
-  }, [sending, useArchive, mode, speak]);
 
   // voice input
   const toggleListen = useCallback(() => {
