@@ -173,6 +173,7 @@ const Index = () => {
         body: {
           message,
           userId: "default",
+          sessionId,
           archiveMode: useArchive,
           inquiryMode: mode,
           pemfContext: pemf ? {
@@ -184,6 +185,17 @@ const Index = () => {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
+      const reply = (data as any).response as string;
+      setMessages(m => [...m, { role: "assistant", content: reply }]);
+      speak(reply);
+      loadSessions();
+    } catch (e: any) {
+      toast.error(e.message || "Belicia hit an error");
+    } finally {
+      setSending(false);
+      setIntensity(0);
+    }
+  }, [sending, useArchive, mode, speak, sessionId, pemf, loadSessions]);
       const reply = (data as any).response as string;
       setMessages(m => [...m, { role: "assistant", content: reply }]);
       speak(reply);
