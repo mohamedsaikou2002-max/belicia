@@ -32,6 +32,54 @@ const Index = () => {
   const [intensity, setIntensity] = useState(0);
   const { pemf, connected: pemfConnected } = usePemfState("default");
   const [showCompressor, setShowCompressor] = useState(false);
+  const [sessionId, setSessionId] = useState<string>(() => {
+    const saved = localStorage.getItem("belicia_session_id");
+    if (saved) return saved;
+    const fresh = crypto.randomUUID();
+    localStorage.setItem("belicia_session_id", fresh);
+    return fresh;
+  });
+  const [sessions, setSessions] = useState<Array<{ session_id: string; preview: string; last: string }>>([]);
+  const [showSessions, setShowSessions] = useState(false);
+
+  const SUPA_URL = "https://focrrskgrxdkiddajxuq.supabase.co";
+  const SUPA_HEADERS = {
+    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+  };
+
+  const loadSessions = useCallback(async () => {
+    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=sessions`, { headers: SUPA_HEADERS });
+    if (r.ok) {
+      const j = await r.json();
+      setSessions(j.sessions ?? []);
+    }
+  }, []);
+
+  const loadSessionMessages = useCallback(async (sid: string) => {
+    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=recent&session_id=${sid}`, { headers: SUPA_HEADERS });
+    if (r.ok) {
+      const j = await r.json();
+      setMessages(j.messages ?? []);
+    }
+  }, []);
+
+  const newChat = useCallback(() => {
+    const fresh = crypto.randomUUID();
+    localStorage.setItem("belicia_session_id", fresh);
+    setSessionId(fresh);
+    setMessages([]);
+    setShowSessions(false);
+    toast.success("New chat started");
+    loadSessions();
+  }, [loadSessions]);
+
+  const switchSession = useCallback((sid: string) => {
+    localStorage.setItem("belicia_session_id", sid);
+    setSessionId(sid);
+    loadSessionMessages(sid);
+    setShowSessions(false);
+  }, [loadSessionMessages]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
