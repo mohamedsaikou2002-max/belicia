@@ -6,7 +6,7 @@ import { usePemfState } from "@/hooks/usePemfState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Mic, MicOff, Send, Trash2, Volume2, VolumeX, Archive } from "lucide-react";
+import { Mic, MicOff, Send, Trash2, Volume2, VolumeX, Archive, Plus, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { BeliciaIntelCompressor } from "@/components/IntelCompressor/BeliciaIntelCompressor";
 
