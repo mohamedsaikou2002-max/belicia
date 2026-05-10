@@ -64,11 +64,14 @@ Deno.serve(async (req) => {
       tags: userTags,
     }).select("id").single();
 
-    // Recent + important history (importance DESC then recency)
-    const { data: history } = await supabase
+    // Recent + important history. If a session_id is provided, scope strictly to that chat
+    // so a "new chat" actually starts fresh.
+    let historyQuery = supabase
       .from("belicia_memory")
       .select("role, content, importance, created_at")
-      .eq("user_id", user_id)
+      .eq("user_id", user_id);
+    if (session_id) historyQuery = historyQuery.eq("session_id", session_id);
+    const { data: history } = await historyQuery
       .order("importance", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(20);
