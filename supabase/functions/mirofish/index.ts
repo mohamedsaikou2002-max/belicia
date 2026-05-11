@@ -209,13 +209,8 @@ function parseAgents(worldText: string, theatre: string, agentCount: number = 50
   for (const raw of worldText.split("\n")) {
     const line = raw.trim();
     if (line.startsWith("NAME:")) {
-      if (current?.name) templates.push(current);
-      const idx = templates.length;
-      current = {
-        name: line.replace("NAME:", "").trim(),
-        archetype: "", personality: "", stance: "NEUTRAL",
-        color: AGENT_COLORS[idx % AGENT_COLORS.length],
-      };
+      if (current?.archetype) templates.push(current);
+      current = { archetype: "", personality: "", stance: "NEUTRAL" };
     } else if (line.startsWith("ARCHETYPE:") && current) {
       current.archetype = line.replace("ARCHETYPE:", "").trim();
     } else if (line.startsWith("PERSONALITY:") && current) {
@@ -224,29 +219,48 @@ function parseAgents(worldText: string, theatre: string, agentCount: number = 50
       current.stance = line.replace("INITIAL STANCE:", "").trim();
     }
   }
-  if (current?.name) templates.push(current);
+  if (current?.archetype) templates.push(current);
   if (templates.length === 0) {
     const arc = DEFAULT_ARCHETYPES[theatre] ?? DEFAULT_ARCHETYPES.custom;
-    arc.forEach((a, i) => templates.push({
-      name: `Agent ${i + 1}`, archetype: a,
+    arc.forEach((a) => templates.push({
+      archetype: a,
       personality: `A culturally authentic ${a.toLowerCase()} from the ${theatre} theatre.`,
-      stance: "NEUTRAL", color: AGENT_COLORS[i % AGENT_COLORS.length],
+      stance: "NEUTRAL",
     }));
   }
-  // Expand templates into a swarm of agentCount agents
-  const stances = ["NEUTRAL", "CURIOUS", "HOSTILE", "AMPLIFIER"];
-  const agents: any[] = [];
+
+  const pool = NAME_POOLS[theatre] ?? NAME_POOLS.custom;
   const total = Math.max(1, Math.min(agentCount, 5000));
+  const agents: any[] = [];
+  const seenNames = new Set<string>();
+
   for (let i = 0; i < total; i++) {
     const t = templates[i % templates.length];
-    const variant = Math.floor(i / templates.length) + 1;
-    const baseId = t.name.replace(/ /g, "_").replace(/\./g, "");
+    const first = pick(pool.first, h(i, 1));
+    const last = pick(pool.last, h(i, 2));
+    const age = pick(AGE_BRACKETS, h(i, 3));
+    const profession = pick(PROFESSIONS, h(i, 4));
+    const value = pick(CORE_VALUES, h(i, 5));
+    const quirk = pick(QUIRKS, h(i, 6));
+    const comm = pick(COMM_STYLES, h(i, 7));
+    const stance = i < templates.length ? t.stance : pick(STANCES, h(i, 8));
+
+    let name = `${first} ${last}`;
+    let tries = 0;
+    while (seenNames.has(name) && tries < 20) {
+      name = `${first} ${last} ${tries + 2}`;
+      tries++;
+    }
+    seenNames.add(name);
+
+    const personality = `${age}yo ${profession}. ${value}; ${quirk}. Comms: ${comm}. Frame: ${t.personality}`;
+
     agents.push({
-      id: `${baseId}_${i}`,
-      name: variant === 1 ? t.name : `${t.name} #${variant}`,
+      id: `agent_${i}_${name.replace(/[^a-z0-9]/gi, "_")}`,
+      name,
       archetype: t.archetype,
-      personality: t.personality,
-      stance: i < templates.length ? t.stance : stances[i % stances.length],
+      personality,
+      stance,
       color: AGENT_COLORS[i % AGENT_COLORS.length],
       memory: [],
     });
