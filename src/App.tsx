@@ -23,7 +23,7 @@ const App = () => (
           <Route path="/briefs" element={<Briefs />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/home" element={<HomePage />} />
-          <Route path="/mirofish" element={<MiroFish />} />
+          <Route path="/pod-room" element={<MiroFish />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
