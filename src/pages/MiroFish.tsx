@@ -229,7 +229,7 @@ const MiroFish = () => {
     <main className="min-h-screen text-foreground">
       <header className="flex items-center justify-between px-6 py-4 bg-glass border-b border-white/10 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-light tracking-[0.3em] text-glow">MIROFISH</h1>
+          <h1 className="text-2xl font-light tracking-[0.3em] text-glow">POD ROOM</h1>
           <p className="text-xs text-white/50 tracking-widest mt-1">REACTIVE COLD SYSTEM · SWARM INTELLIGENCE</p>
         </div>
         <TopNav />
@@ -251,7 +251,7 @@ const MiroFish = () => {
       {tab === "Narrative Lab" && (
         <section className="max-w-3xl mx-auto p-6 space-y-5">
           <div className="bg-glass border border-purple-500/20 rounded-md p-4 text-sm text-white/80" style={{ borderColor: "rgba(90,58,138,0.4)" }}>
-            The swarm begins dormant (cold). You write the narrative below. When you launch, MiroFish injects your narrative as the sole stimulus into the agent population. Agents react based on their cultural archetypes. You watch emergence in real time.
+            The swarm begins dormant (cold). You write the narrative below. When you launch, the Pod Room injects your narrative as the sole stimulus into the agent population. Agents react based on their cultural archetypes. You watch emergence in real time.
           </div>
 
           <div>
@@ -312,7 +312,7 @@ const MiroFish = () => {
           <div className="flex gap-3 pt-2">
             <Button onClick={launch} disabled={launching}
               className="bg-white/15 hover:bg-white/25 border border-white/30 text-white tracking-[0.2em]">
-              <Play className="w-4 h-4" /> {launching ? "BUILDING WORLD…" : "LAUNCH MIROFISH SIMULATION"}
+              <Play className="w-4 h-4" /> {launching ? "BUILDING WORLD…" : "LAUNCH POD ROOM"}
             </Button>
             <Button onClick={reset} variant="ghost" className="text-white/60 hover:text-white">
               <RefreshCw className="w-4 h-4" /> Reset
