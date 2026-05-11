@@ -259,7 +259,12 @@ Be specific to the ${theatre} cultural context. Plain text, no markdown.`;
   return claude(prompt, "", 1200);
 }
 
-function parseAgents(worldText: string, theatre: string, agentCount: number = 50): any[] {
+function parseAgents(
+  worldText: string,
+  theatre: string,
+  agentCount: number = 50,
+  opts: { country?: string; region?: string; seed?: number } = {},
+): any[] {
   const templates: any[] = [];
   let current: any = null;
   for (const raw of worldText.split("\n")) {
@@ -285,39 +290,66 @@ function parseAgents(worldText: string, theatre: string, agentCount: number = 50
     }));
   }
 
-  const pool = NAME_POOLS[theatre] ?? NAME_POOLS.custom;
+  const country = opts.country && COUNTRY_CORPUS[opts.country] ? COUNTRY_CORPUS[opts.country] : null;
+  const pool = country
+    ? { first: country.first, last: country.last }
+    : (NAME_POOLS[theatre] ?? NAME_POOLS.custom);
+  const regions = country?.regions ?? [];
+  const fixedRegion = opts.region && opts.region.trim() ? opts.region.trim() : "";
+
   const total = Math.max(1, Math.min(agentCount, 5000));
   const agents: any[] = [];
   const seenNames = new Set<string>();
 
+  // Deterministic seeded RNG so the same seed reproduces the swarm
+  const baseSeed = (opts.seed ?? 0) >>> 0;
+  const seedFor = (i: number, salt: number) =>
+    (baseSeed ^ Math.imul(i + 1, 2654435761) ^ Math.imul(salt + 1, 40503)) >>> 0;
+  const r = (i: number, salt: number) => mulberry32(seedFor(i, salt))();
+  const pickR = <T,>(arr: T[], i: number, salt: number) => arr[Math.floor(r(i, salt) * arr.length)];
+
+  const initials = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
   for (let i = 0; i < total; i++) {
     const t = templates[i % templates.length];
-    const first = pick(pool.first, h(i, 1));
-    const last = pick(pool.last, h(i, 2));
-    const age = pick(AGE_BRACKETS, h(i, 3));
-    const profession = pick(PROFESSIONS, h(i, 4));
-    const value = pick(CORE_VALUES, h(i, 5));
-    const quirk = pick(QUIRKS, h(i, 6));
-    const comm = pick(COMM_STYLES, h(i, 7));
-    const stance = i < templates.length ? t.stance : pick(STANCES, h(i, 8));
+    const first = pickR(pool.first, i, 1);
+    const last = pickR(pool.last, i, 2);
+    const age = pickR(AGE_BRACKETS, i, 3);
+    const profession = pickR(PROFESSIONS, i, 4);
+    const value = pickR(CORE_VALUES, i, 5);
+    const quirk = pickR(QUIRKS, i, 6);
+    const comm = pickR(COMM_STYLES, i, 7);
+    const stance = i < templates.length ? t.stance : pickR(STANCES, i, 8);
+    const region = fixedRegion || (regions.length ? pickR(regions, i, 9) : "");
 
+    // Dedup ladder: bare → +middle initial → +second initial → +numeric suffix
     let name = `${first} ${last}`;
-    let tries = 0;
-    while (seenNames.has(name) && tries < 20) {
-      name = `${first} ${last} ${tries + 2}`;
-      tries++;
+    if (seenNames.has(name)) {
+      const m1 = initials[Math.floor(r(i, 10) * 26)];
+      name = `${first} ${m1}. ${last}`;
     }
+    if (seenNames.has(name)) {
+      const m1 = initials[Math.floor(r(i, 10) * 26)];
+      const m2 = initials[Math.floor(r(i, 11) * 26)];
+      name = `${first} ${m1}.${m2}. ${last}`;
+    }
+    let suf = 2;
+    const baseAttempt = name;
+    while (seenNames.has(name)) { name = `${baseAttempt} ${suf++}`; if (suf > 9999) break; }
     seenNames.add(name);
 
-    const personality = `${age}yo ${profession}. ${value}; ${quirk}. Comms: ${comm}. Frame: ${t.personality}`;
+    const locStr = region ? ` Based in ${region}${country ? `, ${country.name}` : ""}.` : (country ? ` Based in ${country.name}.` : "");
+    const personality = `${age}yo ${profession}.${locStr} ${value}; ${quirk}. Comms: ${comm}. Frame: ${t.personality}`;
 
     agents.push({
-      id: `agent_${i}_${name.replace(/[^a-z0-9]/gi, "_")}`,
+      id: `agent_${i}_${name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}`,
       name,
       archetype: t.archetype,
       personality,
       stance,
       color: AGENT_COLORS[i % AGENT_COLORS.length],
+      country: opts.country ?? null,
+      region: region || null,
       memory: [],
     });
   }
