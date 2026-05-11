@@ -198,40 +198,80 @@ const MiroFish = () => {
     toast.success("Reset");
   };
 
-  // Swarm canvas
+  // Swarm canvas — typed arrays + per-color batched draw + grid-based edges (only when small)
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
-    const ctx = cv.getContext("2d")!;
-    const w = cv.width = cv.offsetWidth;
-    const h = cv.height = 220;
-    const dots = agents.length ? agents.map((a, i) => ({
-      x: Math.random() * w, y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
-      color: a.stance.includes("AMPLIF") ? "#5a3a8a"
-        : (a.stance.includes("HOSTILE") || a.stance.includes("RESIST")) ? "#e85d24"
-        : a.stance.includes("CURIOUS") ? "#c8a96e" : "#3a7ca5",
-    })) : [];
+    const ctx = cv.getContext("2d", { alpha: false })!;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = cv.offsetWidth, cssH = Math.max(260, Math.min(420, Math.round(cssW * 0.32)));
+    cv.width = Math.floor(cssW * dpr); cv.height = Math.floor(cssH * dpr);
+    cv.style.height = cssH + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = cssW, h = cssH;
+
+    const N = agents.length;
+    if (N === 0) {
+      ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
+      return;
+    }
+    // Stance → color bucket index
+    const COLORS = ["#3a7ca5", "#c8a96e", "#5a3a8a", "#e85d24"]; // NEUTRAL, CURIOUS, AMPLIFIER, HOSTILE
+    const xs = new Float32Array(N), ys = new Float32Array(N);
+    const vxs = new Float32Array(N), vys = new Float32Array(N);
+    const cIdx = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      xs[i] = Math.random() * w; ys[i] = Math.random() * h;
+      vxs[i] = (Math.random() - 0.5) * 0.35; vys[i] = (Math.random() - 0.5) * 0.35;
+      const s = agents[i].stance || "";
+      cIdx[i] = s.includes("AMPLIF") ? 2 : (s.includes("HOSTILE") || s.includes("RESIST")) ? 3 : s.includes("CURIOUS") ? 1 : 0;
+    }
+    // Adaptive radius — shrink as swarm grows
+    const radius = N > 2000 ? 1.2 : N > 800 ? 1.6 : N > 300 ? 2.2 : N > 80 ? 3.2 : 5;
+    const drawEdges = N <= 250; // O(n²) only for small swarms; hide network at scale
+    const linkDist = 110, linkDist2 = linkDist * linkDist;
+
     let raf = 0;
     const draw = () => {
-      ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0, 0, w, h);
-      // edges
-      ctx.strokeStyle = "rgba(200,169,110,0.15)"; ctx.lineWidth = 1;
-      for (let i = 0; i < dots.length; i++) for (let j = i + 1; j < dots.length; j++) {
-        const dx = dots[i].x - dots[j].x, dy = dots[i].y - dots[j].y;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < 120) { ctx.beginPath(); ctx.moveTo(dots[i].x, dots[i].y); ctx.lineTo(dots[j].x, dots[j].y); ctx.stroke(); }
+      // Trail effect
+      ctx.fillStyle = "rgba(0,0,0,0.28)"; ctx.fillRect(0, 0, w, h);
+
+      // Edges (tiny swarms only) — quick squared-distance test, no sqrt
+      if (drawEdges) {
+        ctx.strokeStyle = "rgba(200,169,110,0.18)"; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+          for (let j = i + 1; j < N; j++) {
+            const dx = xs[i] - xs[j], dy = ys[i] - ys[j];
+            if (dx * dx + dy * dy < linkDist2) {
+              ctx.moveTo(xs[i], ys[i]); ctx.lineTo(xs[j], ys[j]);
+            }
+          }
+        }
+        ctx.stroke();
       }
-      for (const d of dots) {
-        d.x += d.vx; d.y += d.vy;
-        if (d.x < 0 || d.x > w) d.vx *= -1;
-        if (d.y < 0 || d.y > h) d.vy *= -1;
-        ctx.beginPath(); ctx.arc(d.x, d.y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = d.color; ctx.fill();
-        ctx.strokeStyle = d.color + "88"; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(d.x, d.y, 10, 0, Math.PI * 2); ctx.stroke();
+
+      // Update positions in one pass
+      for (let i = 0; i < N; i++) {
+        let x = xs[i] + vxs[i], y = ys[i] + vys[i];
+        if (x < 0) { x = 0; vxs[i] = -vxs[i]; } else if (x > w) { x = w; vxs[i] = -vxs[i]; }
+        if (y < 0) { y = 0; vys[i] = -vys[i]; } else if (y > h) { y = h; vys[i] = -vys[i]; }
+        xs[i] = x; ys[i] = y;
       }
+
+      // Batched fill per color — single beginPath/fill per bucket = ~4 draw calls instead of N
+      for (let c = 0; c < COLORS.length; c++) {
+        ctx.fillStyle = COLORS[c];
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+          if (cIdx[i] !== c) continue;
+          ctx.moveTo(xs[i] + radius, ys[i]);
+          ctx.arc(xs[i], ys[i], radius, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+
       raf = requestAnimationFrame(draw);
     };
     draw();
