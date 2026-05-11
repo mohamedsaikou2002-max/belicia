@@ -431,7 +431,7 @@ const MiroFish = () => {
         <section className="grid lg:grid-cols-[1fr_280px] gap-4 p-6">
           <div className="space-y-4">
             <div className="relative bg-glass rounded-md overflow-hidden">
-              <canvas ref={canvasRef} className="w-full block" style={{ height: 220 }} />
+              <canvas ref={canvasRef} className="w-full block" />
               <div className="absolute top-3 left-3 text-[10px] tracking-[0.3em] text-white/70">
                 SWARM · ROUND {round}/{maxR} · {theatre.toUpperCase()}
               </div>
