@@ -229,7 +229,7 @@ const MiroFish = () => {
     <main className="min-h-screen text-foreground">
       <header className="flex items-center justify-between px-6 py-4 bg-glass border-b border-white/10 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-light tracking-[0.3em] text-glow">🐟 MIROFISH</h1>
+          <h1 className="text-2xl font-light tracking-[0.3em] text-glow">MIROFISH</h1>
           <p className="text-xs text-white/50 tracking-widest mt-1">REACTIVE COLD SYSTEM · SWARM INTELLIGENCE</p>
         </div>
         <TopNav />
@@ -328,7 +328,7 @@ const MiroFish = () => {
             <div className="relative bg-glass rounded-md overflow-hidden">
               <canvas ref={canvasRef} className="w-full block" style={{ height: 220 }} />
               <div className="absolute top-3 left-3 text-[10px] tracking-[0.3em] text-white/70">
-                🐟 SWARM · ROUND {round}/{maxR} · {theatre.toUpperCase()}
+                SWARM · ROUND {round}/{maxR} · {theatre.toUpperCase()}
               </div>
               <div className="absolute bottom-3 right-3 text-[10px] tracking-[0.3em] text-white/70 font-mono">
                 AGENTS {agents.length} · CLUSTERS {clusters} · INFL {influence}% · RES {resistance}%

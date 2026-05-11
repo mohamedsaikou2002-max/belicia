@@ -151,7 +151,7 @@ Extract key entities, relationships, and tension points from the narrative.
 Identify 3 hub nodes (high-centrality actors) and their connection type.
 
 STEP 02 — ENVIRONMENT SETUP:
-Spawn exactly 6 specific agent personas. For each:
+Spawn 8 distinct agent persona TEMPLATES (these will be replicated across the swarm of ${agent_count}). For each:
   NAME: [first name last initial]
   ARCHETYPE: [from the archetype list above]
   PERSONALITY: [one sentence, culturally specific]
@@ -165,38 +165,55 @@ Be specific to the ${theatre} cultural context. Plain text, no markdown.`;
   return claude(prompt, "", 1200);
 }
 
-function parseAgents(worldText: string, theatre: string): any[] {
-  const agents: any[] = [];
+function parseAgents(worldText: string, theatre: string, agentCount: number = 50): any[] {
+  const templates: any[] = [];
   let current: any = null;
   for (const raw of worldText.split("\n")) {
     const line = raw.trim();
     if (line.startsWith("NAME:")) {
-      if (current?.name) agents.push(current);
-      const idx = agents.length;
+      if (current?.name) templates.push(current);
+      const idx = templates.length;
       current = {
-        id: `agent_${idx}`, name: line.replace("NAME:", "").trim(),
+        name: line.replace("NAME:", "").trim(),
         archetype: "", personality: "", stance: "NEUTRAL",
-        color: AGENT_COLORS[idx % AGENT_COLORS.length], memory: [],
+        color: AGENT_COLORS[idx % AGENT_COLORS.length],
       };
     } else if (line.startsWith("ARCHETYPE:") && current) {
       current.archetype = line.replace("ARCHETYPE:", "").trim();
-      current.id = current.name.replace(/ /g, "_").replace(/\./g, "");
     } else if (line.startsWith("PERSONALITY:") && current) {
       current.personality = line.replace("PERSONALITY:", "").trim();
     } else if (line.startsWith("INITIAL STANCE:") && current) {
       current.stance = line.replace("INITIAL STANCE:", "").trim();
     }
   }
-  if (current?.name) agents.push(current);
-  if (agents.length === 0) {
+  if (current?.name) templates.push(current);
+  if (templates.length === 0) {
     const arc = DEFAULT_ARCHETYPES[theatre] ?? DEFAULT_ARCHETYPES.custom;
-    arc.slice(0, 6).forEach((a, i) => agents.push({
-      id: `agent_${i}`, name: `Agent ${i + 1}`, archetype: a,
+    arc.forEach((a, i) => templates.push({
+      name: `Agent ${i + 1}`, archetype: a,
       personality: `A culturally authentic ${a.toLowerCase()} from the ${theatre} theatre.`,
-      stance: "NEUTRAL", color: AGENT_COLORS[i % AGENT_COLORS.length], memory: [],
+      stance: "NEUTRAL", color: AGENT_COLORS[i % AGENT_COLORS.length],
     }));
   }
-  return agents.slice(0, 6);
+  // Expand templates into a swarm of agentCount agents
+  const stances = ["NEUTRAL", "CURIOUS", "HOSTILE", "AMPLIFIER"];
+  const agents: any[] = [];
+  const total = Math.max(1, Math.min(agentCount, 5000));
+  for (let i = 0; i < total; i++) {
+    const t = templates[i % templates.length];
+    const variant = Math.floor(i / templates.length) + 1;
+    const baseId = t.name.replace(/ /g, "_").replace(/\./g, "");
+    agents.push({
+      id: `${baseId}_${i}`,
+      name: variant === 1 ? t.name : `${t.name} #${variant}`,
+      archetype: t.archetype,
+      personality: t.personality,
+      stance: i < templates.length ? t.stance : stances[i % stances.length],
+      color: AGENT_COLORS[i % AGENT_COLORS.length],
+      memory: [],
+    });
+  }
+  return agents;
 }
 
 async function runRound(state: SimState, roundNumber: number): Promise<any> {
@@ -440,7 +457,7 @@ Deno.serve(async (req) => {
         state.status = "building";
         const world = await buildWorld(state.config);
         state.world_build = world;
-        state.agents = parseAgents(world, state.config.theatre);
+        state.agents = parseAgents(world, state.config.theatre, state.config.agent_count);
         state.clusters = state.agents.length;
         state.status = "running";
         await saveState(id, state);
