@@ -56,6 +56,8 @@ async function api(action: string, method: "GET" | "POST" | "DELETE" = "POST", b
   return j;
 }
 
+type CountryRow = { code: string; name: string; continent: string; theatre: string; regions: string[] };
+
 const MiroFish = () => {
   const [tab, setTab] = useState<Tab>("Narrative Lab");
 
@@ -66,6 +68,10 @@ const MiroFish = () => {
   const [agentCount, setAgentCount] = useState(50);
   const [maxRounds, setMaxRounds] = useState(20);
   const [launching, setLaunching] = useState(false);
+  const [country, setCountry] = useState<string>("");
+  const [region, setRegion] = useState<string>("");
+  const [seed, setSeed] = useState<string>("");
+  const [countries, setCountries] = useState<Record<string, CountryRow[]>>({});
 
   // Sim state
   const [status, setStatus] = useState<string>("idle");
@@ -91,6 +97,12 @@ const MiroFish = () => {
   const [chat, setChat] = useState<Record<string, { role: "user" | "agent"; content: string }[]>>({});
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
+
+  useEffect(() => {
+    api("countries", "GET").then(j => setCountries(j.by_continent ?? {})).catch(() => {});
+  }, []);
+
+  const countryRow = country ? Object.values(countries).flat().find(c => c.code === country) : undefined;
 
   const refresh = useCallback(async () => {
     try {
