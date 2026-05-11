@@ -133,11 +133,14 @@ const MiroFish = () => {
     setLaunching(true);
     try {
       await api("reset", "DELETE");
-      await api("start", "POST", {
+      const seedVal = seed.trim() ? (Number.isFinite(Number(seed)) ? Number(seed) : seed) : undefined;
+      const res = await api("start", "POST", {
         theatre, sim_type: simType, narrative,
         agent_count: agentCount, max_rounds: maxRounds, cold_system_mode: true,
+        country: country || undefined, region: region || undefined, seed: seedVal,
       });
-      toast.success("Swarm spawned");
+      if (res?.seed != null) setSeed(String(res.seed));
+      toast.success(`Swarm spawned: ${res?.agents?.length ?? agentCount} agents`);
       await refresh();
       setTab("Swarm Reactor");
     } catch (e: any) {
