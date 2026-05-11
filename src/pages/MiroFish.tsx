@@ -337,10 +337,15 @@ const MiroFish = () => {
             <div className="space-y-3">
               <div>
                 <label className="text-[11px] tracking-[0.3em] text-white/60">AGENT COUNT</label>
-                <select value={agentCount} onChange={e => setAgentCount(Number(e.target.value))}
-                  className="mt-1 w-full bg-transparent border border-white/20 text-white text-sm px-3 py-2 rounded-md">
-                  {[20, 50, 100, 200].map(n => <option key={n} value={n} className="bg-black">{n}</option>)}
-                </select>
+                <div className="flex gap-2 items-center mt-1">
+                  <select value={agentCount} onChange={e => setAgentCount(Number(e.target.value))}
+                    className="flex-1 bg-transparent border border-white/20 text-white text-sm px-3 py-2 rounded-md">
+                    {[20, 50, 100, 250, 500, 1000, 2500, 5000].map(n => <option key={n} value={n} className="bg-black">{n.toLocaleString()}</option>)}
+                  </select>
+                  <Input type="number" min={1} max={5000} value={agentCount}
+                    onChange={e => setAgentCount(Math.max(1, Math.min(5000, Number(e.target.value) || 1)))}
+                    className="w-24 bg-transparent border-white/20 text-white text-sm" />
+                </div>
               </div>
               <div>
                 <label className="text-[11px] tracking-[0.3em] text-white/60">MAX ROUNDS</label>
@@ -349,6 +354,51 @@ const MiroFish = () => {
                   {[10, 20, 40].map(n => <option key={n} value={n} className="bg-black">{n}</option>)}
                 </select>
               </div>
+            </div>
+          </div>
+
+          {/* Country / Region / Seed — culture corpus controls */}
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-[11px] tracking-[0.3em] text-white/60">COUNTRY (overrides theatre)</label>
+              <select value={country} onChange={e => { setCountry(e.target.value); setRegion(""); }}
+                className="mt-1 w-full bg-transparent border border-white/20 text-white text-sm px-3 py-2 rounded-md">
+                <option value="" className="bg-black">— none (use theatre) —</option>
+                {Object.entries(countries).sort().map(([cont, list]) => (
+                  <optgroup key={cont} label={cont}>
+                    {list.map(c => <option key={c.code} value={c.code} className="bg-black">{c.name}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] tracking-[0.3em] text-white/60">REGION / CITY</label>
+              {countryRow ? (
+                <select value={region} onChange={e => setRegion(e.target.value)}
+                  className="mt-1 w-full bg-transparent border border-white/20 text-white text-sm px-3 py-2 rounded-md">
+                  <option value="" className="bg-black">— mix all regions —</option>
+                  {countryRow.regions.map(r => <option key={r} value={r} className="bg-black">{r}</option>)}
+                  <option value="__custom__" disabled className="bg-black">— or type below —</option>
+                </select>
+              ) : (
+                <Input value={region} onChange={e => setRegion(e.target.value)} placeholder="e.g. small town name"
+                  className="mt-1 bg-transparent border-white/20 text-white text-sm" />
+              )}
+              {countryRow && (
+                <Input value={region} onChange={e => setRegion(e.target.value)} placeholder="…or type a city/town"
+                  className="mt-2 bg-transparent border-white/20 text-white text-sm" />
+              )}
+            </div>
+            <div>
+              <label className="text-[11px] tracking-[0.3em] text-white/60">PROCEDURAL SEED</label>
+              <div className="flex gap-2 mt-1">
+                <Input value={seed} onChange={e => setSeed(e.target.value)} placeholder="auto"
+                  className="flex-1 bg-transparent border-white/20 text-white text-sm font-mono" />
+                <Button type="button" variant="ghost" size="sm"
+                  onClick={() => setSeed(String(Math.floor(Math.random() * 0xffffffff)))}
+                  className="text-white/60 hover:text-white text-[10px]">RAND</Button>
+              </div>
+              <div className="text-[10px] text-white/40 mt-1">Same seed + config = identical swarm</div>
             </div>
           </div>
 
