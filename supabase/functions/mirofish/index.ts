@@ -574,7 +574,16 @@ Deno.serve(async (req) => {
         });
 
       case "agents":
-        return json({ agents: state.agents });
+        return json({ agents: state.agents, count: state.agents.length });
+
+      case "countries": {
+        const list = Object.entries(COUNTRY_CORPUS).map(([code, c]) => ({
+          code, name: c.name, continent: c.continent, theatre: c.theatre, regions: c.regions,
+        }));
+        const byContinent: Record<string, any[]> = {};
+        for (const c of list) (byContinent[c.continent] ??= []).push(c);
+        return json({ countries: list, by_continent: byContinent });
+      }
 
       case "reset":
         state = emptyState();
@@ -584,25 +593,35 @@ Deno.serve(async (req) => {
       case "start": {
         if (!body.narrative) return json({ error: "narrative required" }, 400);
         state = emptyState();
+        const country = body.country && COUNTRY_CORPUS[body.country] ? body.country : null;
+        const inferredTheatre = country ? COUNTRY_CORPUS[country].theatre : (body.theatre ?? "italia");
+        const seed = (typeof body.seed === "number" && Number.isFinite(body.seed))
+          ? Math.floor(body.seed)
+          : (typeof body.seed === "string" && body.seed.length ? hashStr(body.seed) : Math.floor(Math.random() * 0xffffffff));
         state.config = {
-          theatre: body.theatre ?? "italia",
+          theatre: body.theatre ?? inferredTheatre,
           sim_type: body.sim_type ?? "campaign",
           narrative: body.narrative,
           agent_count: body.agent_count ?? 50,
           max_rounds: body.max_rounds ?? 20,
           archetypes: body.archetypes ?? null,
           cold_system_mode: body.cold_system_mode ?? true,
+          country,
+          region: body.region ?? null,
+          seed,
         };
         state.max_rounds = state.config.max_rounds;
         state.status = "building";
         const world = await buildWorld(state.config);
         state.world_build = world;
-        state.agents = parseAgents(world, state.config.theatre, state.config.agent_count);
+        state.agents = parseAgents(world, state.config.theatre, state.config.agent_count, {
+          country: state.config.country, region: state.config.region, seed: state.config.seed,
+        });
         state.clusters = state.agents.length;
         state.status = "running";
         await saveState(id, state);
         return json({
-          status: "running", world_build: world, agents: state.agents,
+          status: "running", world_build: world, agents: state.agents, seed,
           message: `World built. ${state.agents.length} agents spawned. Ready for round stepping.`,
         });
       }
