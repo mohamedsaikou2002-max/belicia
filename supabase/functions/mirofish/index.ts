@@ -43,7 +43,45 @@ const DEFAULT_ARCHETYPES: Record<string, string[]> = {
   custom: ["Community Elder", "Gatekeeper", "Amplifier", "Skeptic", "Early Adopter", "Blocker"],
 };
 
-const AGENT_COLORS = ["#5a3a8a", "#c8a96e", "#2d6a4f", "#e85d24", "#3a7ca5", "#8a3a7a"];
+const AGENT_COLORS = ["#5a3a8a", "#c8a96e", "#2d6a4f", "#e85d24", "#3a7ca5", "#8a3a7a", "#b8423a", "#3a8a6e", "#6e3a8a", "#8a6e3a", "#3a6e8a", "#a83a5a"];
+
+const NAME_POOLS: Record<string, { first: string[]; last: string[] }> = {
+  italia: {
+    first: ["Marco","Giulia","Luca","Sofia","Matteo","Chiara","Alessandro","Francesca","Davide","Martina","Lorenzo","Valentina","Simone","Elena","Riccardo","Beatrice","Andrea","Camilla","Giovanni","Aurora","Federico","Greta","Tommaso","Anna"],
+    last: ["Rossi","Bianchi","Esposito","Romano","Ferrari","Russo","Greco","Conti","Marino","Ricci","De Luca","Mancini","Costa","Galli","Bruno","Lombardi","Moretti","Barbieri","Fontana","Vitale"],
+  },
+  gulf: {
+    first: ["Ahmed","Fatima","Khalid","Aisha","Omar","Maryam","Yousef","Noura","Saeed","Latifa","Hamad","Hessa","Mohammed","Shaikha","Rashid","Mariam","Sultan","Reem","Faisal","Amna"],
+    last: ["Al-Maktoum","Al-Sabah","Al-Thani","Al-Saud","Al-Nahyan","Al-Qasimi","Al-Mansouri","Al-Hashimi","Al-Shamsi","Al-Falasi","Al-Mazrouei","Al-Suwaidi","Al-Ghurair","Al-Habtoor","Al-Rashed","Al-Otaibi"],
+  },
+  westaf: {
+    first: ["Kwame","Aisha","Chinedu","Aminata","Kofi","Adaeze","Babatunde","Fatou","Olumide","Ngozi","Sekou","Mariama","Ibrahim","Khadija","Yaw","Esi","Tunde","Folake","Mamadou","Awa"],
+    last: ["Okafor","Diallo","Mensah","Adeyemi","Touré","Eze","Bah","Owusu","Camara","Adebayo","Sankara","Nkrumah","Conteh","Obi","Sylla","Asante","Fofana","Abubakar"],
+  },
+  sea: {
+    first: ["Budi","Siti","Aditya","Nur","Wayan","Dewi","Andi","Putri","Bambang","Ratna","Made","Sri","Joko","Indah","Agus","Lestari","Hendra","Maya","Surya","Citra"],
+    last: ["Wijaya","Santoso","Tan","Pratama","Lim","Susanto","Halim","Hartono","Kusuma","Setiawan","Nguyen","Tran","Lee","Wong","Suharto","Iskandar","Rahman","Saputra"],
+  },
+  latam: {
+    first: ["Diego","Sofía","Mateo","Valentina","Santiago","Camila","Sebastián","Isabella","Joaquín","Martina","Tomás","Lucía","Benjamín","Renata","Emilio","Catalina","Andrés","Paula","Gabriel","Florencia"],
+    last: ["González","Rodríguez","Pérez","Fernández","López","Martínez","Silva","Sánchez","Romero","Torres","Vargas","Castro","Ramírez","Ruiz","Álvarez","Morales","Ortiz","Mendoza","Herrera","Cabrera"],
+  },
+  custom: {
+    first: ["Alex","Sam","Jordan","Taylor","Morgan","Casey","Riley","Avery","Quinn","Reese","Drew","Skyler","Cameron","Hayden","Rowan","Sage","Emery","Phoenix"],
+    last: ["Smith","Johnson","Lee","Patel","Kim","Garcia","Müller","Dubois","Ivanov","Yamamoto","Cohen","Andersson","Novak","Khan","Silva","Okonkwo"],
+  },
+};
+
+const AGE_BRACKETS = ["19","23","27","31","35","39","44","48","53","58","63","68","72"];
+const PROFESSIONS = ["barista","accountant","mechanic","teacher","nurse","logistics manager","street vendor","copywriter","electrician","midwife","university lecturer","cab driver","pharmacist","NGO field officer","software contractor","wedding planner","sales rep","fishmonger","mid-level bureaucrat","content creator","real-estate broker","mosque caretaker","football coach","unemployed graduate","family-business heir"];
+const CORE_VALUES = ["family-first","reputation above all","pragmatic survivor","ideologically driven","status-seeking","spiritually devout","cynical realist","openly idealistic","quietly ambitious","tribal loyalty","contrarian by reflex","conflict-averse"];
+const QUIRKS = ["tells stories instead of arguments","never says no directly","name-drops constantly","speaks in proverbs","obsessed with conspiracy theories","always quotes scripture","hides wealth","performs piety in public","laughs at authority","records everything on phone","negotiates aggressively","forwards every WhatsApp rumor","silent until provoked","monologues when nervous","switches languages mid-sentence"];
+const COMM_STYLES = ["voice-note heavy","WhatsApp group dominant","face-to-face only","Twitter/X firebrand","TikTok native","email formalist","Telegram channel admin","mosque/parish pulpit","café back-table whisperer","reels lurker"];
+const STANCES = ["NEUTRAL","NEUTRAL","CURIOUS","CURIOUS","HOSTILE","AMPLIFIER"];
+
+function pick<T>(arr: T[], i: number): T { return arr[i % arr.length]; }
+// Cheap deterministic hash so same index → same combo across runs
+function h(seed: number, salt: number): number { return Math.abs((seed * 2654435761 + salt * 40503) >>> 0); }
 
 const USER_ID = "default";
 
