@@ -56,6 +56,8 @@ async function api(action: string, method: "GET" | "POST" | "DELETE" = "POST", b
   return j;
 }
 
+type CountryRow = { code: string; name: string; continent: string; theatre: string; regions: string[] };
+
 const MiroFish = () => {
   const [tab, setTab] = useState<Tab>("Narrative Lab");
 
@@ -66,6 +68,10 @@ const MiroFish = () => {
   const [agentCount, setAgentCount] = useState(50);
   const [maxRounds, setMaxRounds] = useState(20);
   const [launching, setLaunching] = useState(false);
+  const [country, setCountry] = useState<string>("");
+  const [region, setRegion] = useState<string>("");
+  const [seed, setSeed] = useState<string>("");
+  const [countries, setCountries] = useState<Record<string, CountryRow[]>>({});
 
   // Sim state
   const [status, setStatus] = useState<string>("idle");
@@ -91,6 +97,12 @@ const MiroFish = () => {
   const [chat, setChat] = useState<Record<string, { role: "user" | "agent"; content: string }[]>>({});
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
+
+  useEffect(() => {
+    api("countries", "GET").then(j => setCountries(j.by_continent ?? {})).catch(() => {});
+  }, []);
+
+  const countryRow = country ? Object.values(countries).flat().find(c => c.code === country) : undefined;
 
   const refresh = useCallback(async () => {
     try {
@@ -121,11 +133,14 @@ const MiroFish = () => {
     setLaunching(true);
     try {
       await api("reset", "DELETE");
-      await api("start", "POST", {
+      const seedVal = seed.trim() ? (Number.isFinite(Number(seed)) ? Number(seed) : seed) : undefined;
+      const res = await api("start", "POST", {
         theatre, sim_type: simType, narrative,
         agent_count: agentCount, max_rounds: maxRounds, cold_system_mode: true,
+        country: country || undefined, region: region || undefined, seed: seedVal,
       });
-      toast.success("Swarm spawned");
+      if (res?.seed != null) setSeed(String(res.seed));
+      toast.success(`Swarm spawned: ${res?.agents?.length ?? agentCount} agents`);
       await refresh();
       setTab("Swarm Reactor");
     } catch (e: any) {
@@ -183,40 +198,80 @@ const MiroFish = () => {
     toast.success("Reset");
   };
 
-  // Swarm canvas
+  // Swarm canvas — typed arrays + per-color batched draw + grid-based edges (only when small)
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
-    const ctx = cv.getContext("2d")!;
-    const w = cv.width = cv.offsetWidth;
-    const h = cv.height = 220;
-    const dots = agents.length ? agents.map((a, i) => ({
-      x: Math.random() * w, y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
-      color: a.stance.includes("AMPLIF") ? "#5a3a8a"
-        : (a.stance.includes("HOSTILE") || a.stance.includes("RESIST")) ? "#e85d24"
-        : a.stance.includes("CURIOUS") ? "#c8a96e" : "#3a7ca5",
-    })) : [];
+    const ctx = cv.getContext("2d", { alpha: false })!;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = cv.offsetWidth, cssH = Math.max(260, Math.min(420, Math.round(cssW * 0.32)));
+    cv.width = Math.floor(cssW * dpr); cv.height = Math.floor(cssH * dpr);
+    cv.style.height = cssH + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = cssW, h = cssH;
+
+    const N = agents.length;
+    if (N === 0) {
+      ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
+      return;
+    }
+    // Stance → color bucket index
+    const COLORS = ["#3a7ca5", "#c8a96e", "#5a3a8a", "#e85d24"]; // NEUTRAL, CURIOUS, AMPLIFIER, HOSTILE
+    const xs = new Float32Array(N), ys = new Float32Array(N);
+    const vxs = new Float32Array(N), vys = new Float32Array(N);
+    const cIdx = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      xs[i] = Math.random() * w; ys[i] = Math.random() * h;
+      vxs[i] = (Math.random() - 0.5) * 0.35; vys[i] = (Math.random() - 0.5) * 0.35;
+      const s = agents[i].stance || "";
+      cIdx[i] = s.includes("AMPLIF") ? 2 : (s.includes("HOSTILE") || s.includes("RESIST")) ? 3 : s.includes("CURIOUS") ? 1 : 0;
+    }
+    // Adaptive radius — shrink as swarm grows
+    const radius = N > 2000 ? 1.2 : N > 800 ? 1.6 : N > 300 ? 2.2 : N > 80 ? 3.2 : 5;
+    const drawEdges = N <= 250; // O(n²) only for small swarms; hide network at scale
+    const linkDist = 110, linkDist2 = linkDist * linkDist;
+
     let raf = 0;
     const draw = () => {
-      ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0, 0, w, h);
-      // edges
-      ctx.strokeStyle = "rgba(200,169,110,0.15)"; ctx.lineWidth = 1;
-      for (let i = 0; i < dots.length; i++) for (let j = i + 1; j < dots.length; j++) {
-        const dx = dots[i].x - dots[j].x, dy = dots[i].y - dots[j].y;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < 120) { ctx.beginPath(); ctx.moveTo(dots[i].x, dots[i].y); ctx.lineTo(dots[j].x, dots[j].y); ctx.stroke(); }
+      // Trail effect
+      ctx.fillStyle = "rgba(0,0,0,0.28)"; ctx.fillRect(0, 0, w, h);
+
+      // Edges (tiny swarms only) — quick squared-distance test, no sqrt
+      if (drawEdges) {
+        ctx.strokeStyle = "rgba(200,169,110,0.18)"; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+          for (let j = i + 1; j < N; j++) {
+            const dx = xs[i] - xs[j], dy = ys[i] - ys[j];
+            if (dx * dx + dy * dy < linkDist2) {
+              ctx.moveTo(xs[i], ys[i]); ctx.lineTo(xs[j], ys[j]);
+            }
+          }
+        }
+        ctx.stroke();
       }
-      for (const d of dots) {
-        d.x += d.vx; d.y += d.vy;
-        if (d.x < 0 || d.x > w) d.vx *= -1;
-        if (d.y < 0 || d.y > h) d.vy *= -1;
-        ctx.beginPath(); ctx.arc(d.x, d.y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = d.color; ctx.fill();
-        ctx.strokeStyle = d.color + "88"; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(d.x, d.y, 10, 0, Math.PI * 2); ctx.stroke();
+
+      // Update positions in one pass
+      for (let i = 0; i < N; i++) {
+        let x = xs[i] + vxs[i], y = ys[i] + vys[i];
+        if (x < 0) { x = 0; vxs[i] = -vxs[i]; } else if (x > w) { x = w; vxs[i] = -vxs[i]; }
+        if (y < 0) { y = 0; vys[i] = -vys[i]; } else if (y > h) { y = h; vys[i] = -vys[i]; }
+        xs[i] = x; ys[i] = y;
       }
+
+      // Batched fill per color — single beginPath/fill per bucket = ~4 draw calls instead of N
+      for (let c = 0; c < COLORS.length; c++) {
+        ctx.fillStyle = COLORS[c];
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+          if (cIdx[i] !== c) continue;
+          ctx.moveTo(xs[i] + radius, ys[i]);
+          ctx.arc(xs[i], ys[i], radius, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+
       raf = requestAnimationFrame(draw);
     };
     draw();
@@ -282,10 +337,15 @@ const MiroFish = () => {
             <div className="space-y-3">
               <div>
                 <label className="text-[11px] tracking-[0.3em] text-white/60">AGENT COUNT</label>
-                <select value={agentCount} onChange={e => setAgentCount(Number(e.target.value))}
-                  className="mt-1 w-full bg-transparent border border-white/20 text-white text-sm px-3 py-2 rounded-md">
-                  {[20, 50, 100, 200].map(n => <option key={n} value={n} className="bg-black">{n}</option>)}
-                </select>
+                <div className="flex gap-2 items-center mt-1">
+                  <select value={agentCount} onChange={e => setAgentCount(Number(e.target.value))}
+                    className="flex-1 bg-transparent border border-white/20 text-white text-sm px-3 py-2 rounded-md">
+                    {[20, 50, 100, 250, 500, 1000, 2500, 5000].map(n => <option key={n} value={n} className="bg-black">{n.toLocaleString()}</option>)}
+                  </select>
+                  <Input type="number" min={1} max={5000} value={agentCount}
+                    onChange={e => setAgentCount(Math.max(1, Math.min(5000, Number(e.target.value) || 1)))}
+                    className="w-24 bg-transparent border-white/20 text-white text-sm" />
+                </div>
               </div>
               <div>
                 <label className="text-[11px] tracking-[0.3em] text-white/60">MAX ROUNDS</label>
@@ -294,6 +354,51 @@ const MiroFish = () => {
                   {[10, 20, 40].map(n => <option key={n} value={n} className="bg-black">{n}</option>)}
                 </select>
               </div>
+            </div>
+          </div>
+
+          {/* Country / Region / Seed — culture corpus controls */}
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-[11px] tracking-[0.3em] text-white/60">COUNTRY (overrides theatre)</label>
+              <select value={country} onChange={e => { setCountry(e.target.value); setRegion(""); }}
+                className="mt-1 w-full bg-transparent border border-white/20 text-white text-sm px-3 py-2 rounded-md">
+                <option value="" className="bg-black">— none (use theatre) —</option>
+                {Object.entries(countries).sort().map(([cont, list]) => (
+                  <optgroup key={cont} label={cont}>
+                    {list.map(c => <option key={c.code} value={c.code} className="bg-black">{c.name}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] tracking-[0.3em] text-white/60">REGION / CITY</label>
+              {countryRow ? (
+                <select value={region} onChange={e => setRegion(e.target.value)}
+                  className="mt-1 w-full bg-transparent border border-white/20 text-white text-sm px-3 py-2 rounded-md">
+                  <option value="" className="bg-black">— mix all regions —</option>
+                  {countryRow.regions.map(r => <option key={r} value={r} className="bg-black">{r}</option>)}
+                  <option value="__custom__" disabled className="bg-black">— or type below —</option>
+                </select>
+              ) : (
+                <Input value={region} onChange={e => setRegion(e.target.value)} placeholder="e.g. small town name"
+                  className="mt-1 bg-transparent border-white/20 text-white text-sm" />
+              )}
+              {countryRow && (
+                <Input value={region} onChange={e => setRegion(e.target.value)} placeholder="…or type a city/town"
+                  className="mt-2 bg-transparent border-white/20 text-white text-sm" />
+              )}
+            </div>
+            <div>
+              <label className="text-[11px] tracking-[0.3em] text-white/60">PROCEDURAL SEED</label>
+              <div className="flex gap-2 mt-1">
+                <Input value={seed} onChange={e => setSeed(e.target.value)} placeholder="auto"
+                  className="flex-1 bg-transparent border-white/20 text-white text-sm font-mono" />
+                <Button type="button" variant="ghost" size="sm"
+                  onClick={() => setSeed(String(Math.floor(Math.random() * 0xffffffff)))}
+                  className="text-white/60 hover:text-white text-[10px]">RAND</Button>
+              </div>
+              <div className="text-[10px] text-white/40 mt-1">Same seed + config = identical swarm</div>
             </div>
           </div>
 
@@ -326,7 +431,7 @@ const MiroFish = () => {
         <section className="grid lg:grid-cols-[1fr_280px] gap-4 p-6">
           <div className="space-y-4">
             <div className="relative bg-glass rounded-md overflow-hidden">
-              <canvas ref={canvasRef} className="w-full block" style={{ height: 220 }} />
+              <canvas ref={canvasRef} className="w-full block" />
               <div className="absolute top-3 left-3 text-[10px] tracking-[0.3em] text-white/70">
                 SWARM · ROUND {round}/{maxR} · {theatre.toUpperCase()}
               </div>
