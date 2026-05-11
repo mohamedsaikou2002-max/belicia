@@ -457,7 +457,7 @@ Deno.serve(async (req) => {
         state.status = "building";
         const world = await buildWorld(state.config);
         state.world_build = world;
-        state.agents = parseAgents(world, state.config.theatre);
+        state.agents = parseAgents(world, state.config.theatre, state.config.agent_count);
         state.clusters = state.agents.length;
         state.status = "running";
         await saveState(id, state);
