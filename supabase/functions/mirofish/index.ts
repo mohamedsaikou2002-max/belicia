@@ -151,7 +151,7 @@ Extract key entities, relationships, and tension points from the narrative.
 Identify 3 hub nodes (high-centrality actors) and their connection type.
 
 STEP 02 — ENVIRONMENT SETUP:
-Spawn exactly 6 specific agent personas. For each:
+Spawn 8 distinct agent persona TEMPLATES (these will be replicated across the swarm of ${agent_count}). For each:
   NAME: [first name last initial]
   ARCHETYPE: [from the archetype list above]
   PERSONALITY: [one sentence, culturally specific]
