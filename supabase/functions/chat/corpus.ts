@@ -1,5 +1,6 @@
 // Bayt al-Hikmah corpus — Islamic philosophy + comparative natural theology
 // Used to ground Belicia's responses with live Internet Archive retrieval.
+import { EXPERT_CORPUS } from "./expert_corpus.ts";
 
 export type CorpusEntry = {
   cat: string;
@@ -389,6 +390,13 @@ ${modeFragment}
 ## Reference Corpus
 ${corpusList}
 ${excerptBlock}
+
+## Expert Knowledge Appendix (technical domains)
+You also have working expertise across these domains; draw on them when the user's question is technical:
+${Object.keys(EXPERT_CORPUS).map(k => `  - ${k}`).join("\n")}
+
+When a user question clearly maps to one of these domains, use the relevant section as ground truth:
+${JSON.stringify(EXPERT_CORPUS).slice(0, 18000)}
 
 ## Instructions
 - When Source Passages are provided above, synthesize directly from them. Paraphrase deeply; do not merely repeat.
