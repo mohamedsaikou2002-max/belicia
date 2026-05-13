@@ -155,6 +155,54 @@ export type Database = {
         }
         Relationships: []
       }
+      eagle_eye_targets: {
+        Row: {
+          accounts: Json
+          contacts: Json
+          created_at: string
+          exif: Json
+          graph: Json
+          id: string
+          photos: Json
+          report: string | null
+          seed_username: string | null
+          status: string
+          subject: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accounts?: Json
+          contacts?: Json
+          created_at?: string
+          exif?: Json
+          graph?: Json
+          id?: string
+          photos?: Json
+          report?: string | null
+          seed_username?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          accounts?: Json
+          contacts?: Json
+          created_at?: string
+          exif?: Json
+          graph?: Json
+          id?: string
+          photos?: Json
+          report?: string | null
+          seed_username?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       home_commands: {
         Row: {
           command: Json
