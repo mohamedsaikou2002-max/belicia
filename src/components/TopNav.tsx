@@ -4,6 +4,7 @@ const LINKS = [
   { to: "/", label: "ORB" },
   { to: "/briefs", label: "BRIEFS" },
   { to: "/pod-room", label: "POD ROOM" },
+  { to: "/eagle-eye", label: "EAGLE EYE" },
   { to: "/profile", label: "PROFILE" },
   { to: "/home", label: "HOME" },
 ];

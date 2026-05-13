@@ -23,3 +23,9 @@ verify_jwt = false
 
 [functions.intel-distill]
 verify_jwt = false
+
+[functions.eagle-eye]
+verify_jwt = false
+
+[functions.mirofish]
+verify_jwt = false
