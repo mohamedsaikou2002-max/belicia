@@ -1,27 +1,29 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
-const CLAUDE_MODEL = "anthropic/claude-opus-4.7";
-const DOLPHIN_MODEL = "cognitivecomputations/dolphin-mixtral-8x22b";
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
+const CLAUDE_MODEL = "claude-opus-4-5";
 
-async function openrouter(model: string, messages: any[], json = false) {
-  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+async function claude(system: string, messages: any[], opts: { json?: boolean; max_tokens?: number } = {}) {
+  const convo = messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({ role: m.role, content: m.content }));
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-      "HTTP-Referer": "https://lovable.dev",
-      "X-Title": "Belicia Game Theory Room",
     },
     body: JSON.stringify({
-      model,
-      messages,
-      ...(json ? { response_format: { type: "json_object" } } : {}),
+      model: CLAUDE_MODEL,
+      max_tokens: opts.max_tokens ?? 4096,
+      system: opts.json ? `${system}\n\nReturn ONLY valid JSON. No prose, no markdown fences.` : system,
+      messages: convo,
     }),
   });
-  if (!r.ok) throw new Error(`OpenRouter ${r.status}: ${await r.text()}`);
+  if (!r.ok) throw new Error(`Anthropic ${r.status}: ${await r.text()}`);
   const j = await r.json();
-  return j.choices?.[0]?.message?.content ?? "";
+  return (j.content ?? []).map((c: any) => c.text ?? "").join("");
 }
 
 const ANALYST_SYS = `You are Jarvis — a game-theory analyst for Belicia. Engage in natural conversation.
@@ -55,27 +57,25 @@ Deno.serve(async (req) => {
     let out: any;
 
     if (path === "/chat") {
-      // body: { messages: [{role,content}, ...] }
-      const msgs = [{ role: "system", content: ANALYST_SYS }, ...(body.messages ?? [])];
-      const reply = await openrouter(CLAUDE_MODEL, msgs);
+      const reply = await claude(ANALYST_SYS, body.messages ?? []);
       out = { reply };
     } else if (path === "/narrate") {
-      // body: { messages: [...] }
       const transcript = (body.messages ?? [])
         .map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
-      const reply = await openrouter(DOLPHIN_MODEL, [
-        { role: "system", content: NARRATOR_SYS },
+      const reply = await claude(NARRATOR_SYS, [
         { role: "user", content: `Prior conversation:\n\n${transcript}\n\nNow narrate the scenario.` },
       ]);
       out = { narrative: reply };
     } else if (path === "/summarize") {
       const transcript = (body.messages ?? [])
         .map((m: any) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
-      const reply = await openrouter(CLAUDE_MODEL, [
-        { role: "system", content: SUMMARIZER_SYS },
+      const reply = await claude(SUMMARIZER_SYS, [
         { role: "user", content: `Compress this game-theory conversation into a Pod Room payload:\n\n${transcript}` },
-      ], true);
-      try { out = JSON.parse(reply); } catch { out = { _raw: reply }; }
+      ], { json: true });
+      try {
+        const cleaned = reply.replace(/^```json\s*|\s*```$/g, "").trim();
+        out = JSON.parse(cleaned);
+      } catch { out = { _raw: reply }; }
     } else {
       out = { error: "unknown path", path };
     }
