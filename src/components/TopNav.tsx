@@ -5,6 +5,7 @@ const LINKS = [
   { to: "/briefs", label: "BRIEFS" },
   { to: "/pod-room", label: "POD ROOM" },
   { to: "/eagle-eye", label: "EAGLE EYE" },
+  { to: "/game-theory", label: "GAME THEORY" },
   { to: "/profile", label: "PROFILE" },
   { to: "/home", label: "HOME" },
 ];
