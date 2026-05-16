@@ -105,6 +105,18 @@ export default function PodRoom() {
     getTheatres()
       .then((d) => { if (d.theatres?.length) setTheatres(d.theatres); })
       .catch(() => {/* keep defaults */});
+    // Bridge: pick up payload from Game Theory Room
+    try {
+      const raw = sessionStorage.getItem("gt_pod_payload");
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p.narrative) setNarrative(p.narrative);
+        if (p.theatre) setTheatre(p.theatre);
+        if (p.agent_count) setAgentCount(Math.max(100, Math.min(5000, Math.round(p.agent_count))));
+        sessionStorage.removeItem("gt_pod_payload");
+        toast.success("Loaded scenario from Game Theory Room");
+      }
+    } catch {/* ignore */}
   }, []);
 
   // ─── actions ────────────────────────────────────────────────
