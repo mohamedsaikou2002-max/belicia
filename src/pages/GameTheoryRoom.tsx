@@ -173,7 +173,14 @@ export default function GameTheoryRoom() {
           </Card>
 
           {payload && (
-            <Card className="bg-card/40 border-white/10 p-4 space-y-3">
+            <Card className="bg-card/40 border-white/10 p-4 space-y-3 group relative">
+              <button
+                onClick={() => copyToClipboard(JSON.stringify(payload, null, 2))}
+                className="absolute top-3 right-3 p-1 rounded bg-card border border-white/10 text-white/60 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Copy payload JSON"
+              >
+                <Copy size={12} />
+              </button>
               <div className="text-[11px] tracking-[0.25em] text-white/60">POD ROOM PAYLOAD</div>
               <div className="text-xs space-y-2">
                 <div><span className="text-white/40">Theatre:</span> {payload.theatre}</div>
