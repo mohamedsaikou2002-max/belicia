@@ -1,7 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
-const CLAUDE_MODEL = "anthropic/claude-3.5-sonnet";
+const CLAUDE_MODEL = "anthropic/claude-sonnet-4.5";
 const DOLPHIN_MODEL = "cognitivecomputations/dolphin-mixtral-8x22b";
 
 async function openrouter(model: string, messages: any[], json = false) {
