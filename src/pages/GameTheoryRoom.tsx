@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Brain, Send, Sparkles, Film, Loader2 } from "lucide-react";
+import { ArrowLeft, Brain, Send, Sparkles, Film, Loader2, Copy, Check } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,6 +58,21 @@ export default function GameTheoryRoom() {
     finally { setSummarizing(false); }
   };
 
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  const copyToClipboard = async (text: string, idx?: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard");
+      if (idx !== undefined) {
+        setCopiedIdx(idx);
+        setTimeout(() => setCopiedIdx(null), 1500);
+      }
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
   const sendToPod = () => {
     if (!payload) return;
     sessionStorage.setItem("gt_pod_payload", JSON.stringify(payload));
@@ -87,13 +102,22 @@ export default function GameTheoryRoom() {
             )}
             <div className="space-y-4">
               {messages.map((m, i) => (
-                <div key={i} className={m.role === "user" ? "text-right" : ""}>
-                  <div className={`inline-block max-w-[85%] px-3 py-2 rounded text-sm whitespace-pre-wrap ${
+                <div key={i} className={m.role === "user" ? "text-right" : "group"}>
+                  <div className={`relative inline-block max-w-[85%] px-3 py-2 rounded text-sm whitespace-pre-wrap ${
                     m.role === "user"
                       ? "bg-white/10 text-white"
                       : "bg-indigo-500/10 border border-indigo-500/20 text-white/90"
                   }`}>
                     {m.content}
+                    {m.role === "assistant" && (
+                      <button
+                        onClick={() => copyToClipboard(m.content, i)}
+                        className="absolute -top-2 -right-2 p-1 rounded bg-card border border-white/10 text-white/60 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Copy"
+                      >
+                        {copiedIdx === i ? <Check size={10} /> : <Copy size={10} />}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -120,7 +144,14 @@ export default function GameTheoryRoom() {
           </div>
 
           {narrative && (
-            <Card className="bg-card/40 border-white/10 p-4">
+            <Card className="bg-card/40 border-white/10 p-4 group relative">
+              <button
+                onClick={() => copyToClipboard(narrative)}
+                className="absolute top-3 right-3 p-1 rounded bg-card border border-white/10 text-white/60 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Copy narrative"
+              >
+                <Copy size={12} />
+              </button>
               <div className="text-[11px] tracking-[0.25em] text-white/60 mb-2 flex items-center gap-2">
                 <Film size={12} /> NARRATIVE
               </div>
@@ -142,7 +173,14 @@ export default function GameTheoryRoom() {
           </Card>
 
           {payload && (
-            <Card className="bg-card/40 border-white/10 p-4 space-y-3">
+            <Card className="bg-card/40 border-white/10 p-4 space-y-3 group relative">
+              <button
+                onClick={() => copyToClipboard(JSON.stringify(payload, null, 2))}
+                className="absolute top-3 right-3 p-1 rounded bg-card border border-white/10 text-white/60 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Copy payload JSON"
+              >
+                <Copy size={12} />
+              </button>
               <div className="text-[11px] tracking-[0.25em] text-white/60">POD ROOM PAYLOAD</div>
               <div className="text-xs space-y-2">
                 <div><span className="text-white/40">Theatre:</span> {payload.theatre}</div>
