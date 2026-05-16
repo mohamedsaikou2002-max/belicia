@@ -117,8 +117,8 @@ export default function PodRoom() {
       setSetupStatus("Claude analyzing variables...");
       const res = await podSetup(narrative, theatre, agentCount, insurgentPct, forceRefresh);
       setSetupStatus("Spawning agents...");
-      setDerivedVars(res.derived_vars ?? res.derivedVars ?? null);
-      setSeedInfo(res.seed_info ?? res.seedInfo ?? null);
+      setDerivedVars((res as any).derived_vars ?? null);
+      setSeedInfo((res as any).seed_info ?? null);
       const c = await podCanvas();
       setCanvas(c);
       setHistory([summarize(c, 0)]);
