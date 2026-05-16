@@ -10,6 +10,7 @@ import ProfilePage from "./pages/Profile.tsx";
 import HomePage from "./pages/Home.tsx";
 import PodRoom from "./pages/PodRoom.tsx";
 import EagleEye from "./pages/EagleEye.tsx";
+import GameTheoryRoom from "./pages/GameTheoryRoom.tsx";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/home" element={<HomePage />} />
           <Route path="/pod-room" element={<PodRoom />} />
           <Route path="/eagle-eye" element={<EagleEye />} />
+          <Route path="/game-theory" element={<GameTheoryRoom />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
