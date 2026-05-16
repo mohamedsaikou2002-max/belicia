@@ -58,6 +58,21 @@ export default function GameTheoryRoom() {
     finally { setSummarizing(false); }
   };
 
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  const copyToClipboard = async (text: string, idx?: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard");
+      if (idx !== undefined) {
+        setCopiedIdx(idx);
+        setTimeout(() => setCopiedIdx(null), 1500);
+      }
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
   const sendToPod = () => {
     if (!payload) return;
     sessionStorage.setItem("gt_pod_payload", JSON.stringify(payload));
