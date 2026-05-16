@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.mirofish]
 verify_jwt = false
+
+[functions.game-theory]
+verify_jwt = false
