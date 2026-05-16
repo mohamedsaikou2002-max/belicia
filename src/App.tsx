@@ -8,7 +8,7 @@ import NotFound from "./pages/NotFound.tsx";
 import Briefs from "./pages/Briefs.tsx";
 import ProfilePage from "./pages/Profile.tsx";
 import HomePage from "./pages/Home.tsx";
-import MiroFish from "./pages/MiroFish.tsx";
+import PodRoom from "./pages/PodRoom.tsx";
 import EagleEye from "./pages/EagleEye.tsx";
 
 const queryClient = new QueryClient();
@@ -24,7 +24,7 @@ const App = () => (
           <Route path="/briefs" element={<Briefs />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/home" element={<HomePage />} />
-          <Route path="/pod-room" element={<MiroFish />} />
+          <Route path="/pod-room" element={<PodRoom />} />
           <Route path="/eagle-eye" element={<EagleEye />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
