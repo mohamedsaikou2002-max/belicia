@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Brain, Send, Sparkles, Film, Loader2 } from "lucide-react";
+import { ArrowLeft, Brain, Send, Sparkles, Film, Loader2, Copy, Check } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
