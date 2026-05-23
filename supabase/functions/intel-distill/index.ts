@@ -197,7 +197,7 @@ Produce a LONG-FORM distillation for this ${total && total > 1 ? "part" : "sourc
     }));
     msgs.push({
       header: `\n\n========== UNIFIED DISTILLATION ==========\n\n`,
-      user: `The source "${sourceTitle}" was too large for one pass and was distilled in ${chunks.length} parts above. Now produce a single UNIFIED LONG-FORM distillation merging them, strictly internal to the source, in the full format (LOAD-BEARING IDEAS, KEY CLAIMS & EVIDENCE, INTERNAL STRUCTURE, NOTABLE TERMS / DEFINITIONS, ILLUSTRATIVE EXAMPLES & CASES, TENSIONS & OPEN QUESTIONS, COMPRESSION RATIO). Target two-chapters worth of length (8,000–15,000+ words). Preserve specifics — names, numbers, examples — across the whole work. Use the part distillations as ground truth.`,
+      user: `The source "${sourceTitle}" was too large for one pass and was distilled in ${chunks.length} parts above. Now produce a single UNIFIED LONG-FORM distillation merging them, strictly internal to the source, in the full format (LOAD-BEARING IDEAS, KEY CLAIMS & EVIDENCE, INTERNAL STRUCTURE, NOTABLE TERMS / DEFINITIONS, ILLUSTRATIVE EXAMPLES & CASES, TENSIONS & OPEN QUESTIONS, COMPRESSION RATIO). NO LENGTH CAP — no word/page/character limit. Preserve specifics — names, numbers, examples — across the whole work. Use every token you need. Use the part distillations as ground truth.`,
       maxTokens: 48000,
     });
     return streamMany(msgs);
