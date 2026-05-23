@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Search, FileText, Link2, Sparkles, Loader2 } from "lucide-react";
+import { X, Search, FileText, Link2, Sparkles, Loader2, Archive } from "lucide-react";
+import JSZip from "jszip";
+import * as pdfjsLib from "pdfjs-dist";
+// @ts-ignore - vite worker import
+import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
 
-type Mode = "archive" | "paste" | "url";
+pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker();
+
+type Mode = "archive" | "paste" | "url" | "zip";
 type ArchiveDoc = { identifier: string; title?: string; creator?: string; year?: string; description?: string };
 type Chapter = { index: number; title: string; word_count: number; char_count: number; full_text: string };
 type Distillation = { chapter_index: number; chapter_title: string; distillation: string };
@@ -55,6 +61,26 @@ async function archiveCall(action: string, payload: any) {
   return await r.json();
 }
 
+async function extractPdfText(data: ArrayBuffer): Promise<string> {
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  const parts: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    parts.push((tc.items as any[]).map((it) => it.str).join(" "));
+    page.cleanup();
+  }
+  await pdf.destroy();
+  return parts.join("\n\n");
+}
+
+function stripHtml(s: string) {
+  return s.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ").trim();
+}
+
 interface Props { onClose: () => void }
 
 export const BeliciaIntelCompressor = ({ onClose }: Props) => {
@@ -73,12 +99,20 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
   const [urlInput, setUrlInput] = useState("");
   const [urlFocus, setUrlFocus] = useState("");
 
+  // zip
+  const [zipName, setZipName] = useState("");
+  const [zipProgress, setZipProgress] = useState("");
+  const [loadingZip, setLoadingZip] = useState(false);
+  const zipInputRef = useRef<HTMLInputElement>(null);
+
   // distillation
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [output, setOutput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [distillations, setDistillations] = useState<Distillation[]>([]);
   const [synthMode, setSynthMode] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const autoCancelRef = useRef(false);
 
   const outRef = useRef<HTMLDivElement>(null);
 
@@ -104,22 +138,40 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
     } finally { setLoadingChapters(false); }
   };
 
+  const distillChapterAsync = (ch: Chapter) =>
+    new Promise<void>((resolve) => {
+      setActiveIdx(ch.index); setOutput(""); setStreaming(true); setSynthMode(false);
+      let acc = "";
+      streamDistill(
+        { mode: "single", text: ch.full_text, source_title: selectedDoc?.title || zipName || "Source", chapter_title: ch.title, block_mode: "chapter" },
+        (d) => { acc += d; setOutput(acc); },
+        () => {
+          setStreaming(false);
+          setDistillations((prev) => {
+            const filtered = prev.filter((p) => p.chapter_index !== ch.index);
+            return [...filtered, { chapter_index: ch.index, chapter_title: ch.title, distillation: acc }];
+          });
+          resolve();
+        },
+        (e) => { setOutput(acc + "\n\n[ERROR] " + e); setStreaming(false); resolve(); },
+      );
+    });
+
   const distillChapter = async (ch: Chapter) => {
     if (streaming) return;
-    setActiveIdx(ch.index); setOutput(""); setStreaming(true); setSynthMode(false);
-    let acc = "";
-    await streamDistill(
-      { mode: "single", text: ch.full_text, source_title: selectedDoc?.title || "Source", chapter_title: ch.title, block_mode: "chapter" },
-      (d) => { acc += d; setOutput(acc); },
-      () => {
-        setStreaming(false);
-        setDistillations((prev) => {
-          const filtered = prev.filter((p) => p.chapter_index !== ch.index);
-          return [...filtered, { chapter_index: ch.index, chapter_title: ch.title, distillation: acc }];
-        });
-      },
-      (e) => { setOutput(acc + "\n\n[ERROR] " + e); setStreaming(false); },
-    );
+    await distillChapterAsync(ch);
+  };
+
+  const distillAll = async () => {
+    if (streaming || autoRunning) return;
+    autoCancelRef.current = false;
+    setAutoRunning(true);
+    const pending = chapters.filter((c) => !distillations.some((d) => d.chapter_index === c.index));
+    for (const ch of pending) {
+      if (autoCancelRef.current) break;
+      await distillChapterAsync(ch);
+    }
+    setAutoRunning(false);
   };
 
   const distillRaw = async (text: string, sourceTitle: string) => {
@@ -154,12 +206,68 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
     }
   };
 
+  const handleZipFile = async (file: File) => {
+    setLoadingZip(true);
+    setZipName(file.name);
+    setChapters([]); setDistillations([]); setOutput(""); setActiveIdx(null); setSelectedDoc(null);
+    setZipProgress("opening zip…");
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const entries = Object.values(zip.files).filter((f) => !f.dir);
+      // sort by path for stable order
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+      const chs: Chapter[] = [];
+      let idx = 0;
+      for (const entry of entries) {
+        const lower = entry.name.toLowerCase();
+        if (/(^|\/)(\._|\.ds_store|thumbs\.db)/i.test(entry.name)) continue;
+        setZipProgress(`reading ${idx + 1}/${entries.length}: ${entry.name}`);
+        let text = "";
+        try {
+          if (lower.endsWith(".pdf")) {
+            const buf = await entry.async("arraybuffer");
+            text = await extractPdfText(buf);
+          } else if (lower.endsWith(".txt") || lower.endsWith(".md") || lower.endsWith(".markdown") ||
+                     lower.endsWith(".json") || lower.endsWith(".csv") || lower.endsWith(".log") ||
+                     lower.endsWith(".rtf") || lower.endsWith(".xml") || lower.endsWith(".srt") ||
+                     lower.endsWith(".vtt") || lower.endsWith(".tex") || lower.endsWith(".org")) {
+            text = await entry.async("string");
+            if (lower.endsWith(".xml")) text = stripHtml(text);
+          } else if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+            text = stripHtml(await entry.async("string"));
+          } else {
+            continue; // skip binary / unsupported
+          }
+        } catch (e) {
+          continue;
+        }
+        text = text.replace(/\s+/g, " ").trim();
+        if (text.length < 100) continue;
+        chs.push({
+          index: idx++,
+          title: entry.name,
+          word_count: text.split(/\s+/).length,
+          char_count: text.length,
+          full_text: text,
+        });
+        // incremental render so user sees progress
+        if (idx % 5 === 0) setChapters([...chs]);
+      }
+      setChapters(chs);
+      setZipProgress(`loaded ${chs.length} document${chs.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      setZipProgress("[ERROR] " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setLoadingZip(false);
+    }
+  };
+
   const runSynthesis = async () => {
     if (distillations.length < 2 || streaming) return;
     setOutput(""); setStreaming(true); setSynthMode(true); setActiveIdx(null);
     let acc = "";
     await streamDistill(
-      { mode: "batch", source_title: selectedDoc?.title || "Source", summaries: distillations },
+      { mode: "batch", source_title: selectedDoc?.title || zipName || "Source", summaries: distillations },
       (d) => { acc += d; setOutput(acc); },
       () => setStreaming(false),
       (e) => { setOutput(acc + "\n\n[ERROR] " + e); setStreaming(false); },
@@ -173,7 +281,7 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
         <div className="flex items-center gap-6">
           <h2 className="text-sm tracking-[0.4em]">⊕ INTEL COMPRESSOR</h2>
           <div className="flex gap-1 text-[10px] tracking-[0.3em]">
-            {(["archive", "paste", "url"] as Mode[]).map((m) => (
+            {(["archive", "paste", "url", "zip"] as Mode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
@@ -182,6 +290,7 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
                 {m === "archive" && <Search className="w-3 h-3 inline mr-1.5" />}
                 {m === "paste" && <FileText className="w-3 h-3 inline mr-1.5" />}
                 {m === "url" && <Link2 className="w-3 h-3 inline mr-1.5" />}
+                {m === "zip" && <Archive className="w-3 h-3 inline mr-1.5" />}
                 {m.toUpperCase()}
               </button>
             ))}
@@ -232,32 +341,6 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
                   </button>
                   <div className="text-xs text-white border-b border-white/10 pb-2">{selectedDoc.title}</div>
                   {loadingChapters && <div className="text-[11px] text-white/50 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> loading chapters…</div>}
-                  {chapters.map((ch) => {
-                    const done = distillations.some((d) => d.chapter_index === ch.index);
-                    return (
-                      <div key={ch.index} className={`border ${activeIdx === ch.index ? "border-white" : "border-white/15"} p-3`}>
-                        <div className="text-[11px] text-white truncate">{ch.title}</div>
-                        <div className="text-[10px] text-white/40 mt-1">{ch.word_count.toLocaleString()} words {done ? "· ✓ distilled" : ""}</div>
-                        <button
-                          onClick={() => distillChapter(ch)}
-                          disabled={streaming}
-                          className="mt-2 text-[10px] tracking-[0.2em] border border-white/30 px-2 py-1 hover:bg-white hover:text-black transition disabled:opacity-30"
-                        >
-                          DISTILL
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {distillations.length >= 2 && (
-                    <button
-                      onClick={runSynthesis}
-                      disabled={streaming}
-                      className="w-full mt-4 border border-white py-2 text-[11px] tracking-[0.3em] hover:bg-white hover:text-black transition disabled:opacity-40"
-                    >
-                      <Sparkles className="w-3 h-3 inline mr-2" />
-                      MASTER SYNTHESIS ({distillations.length})
-                    </button>
-                  )}
                 </div>
               )}
             </>
@@ -305,12 +388,97 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
               </button>
             </>
           )}
+
+          {mode === "zip" && (
+            <>
+              <input
+                ref={zipInputRef}
+                type="file"
+                accept=".zip,application/zip"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleZipFile(f);
+                  if (zipInputRef.current) zipInputRef.current.value = "";
+                }}
+              />
+              <button
+                onClick={() => zipInputRef.current?.click()}
+                disabled={loadingZip}
+                className="w-full border border-white/30 py-6 text-[11px] tracking-[0.3em] hover:bg-white hover:text-black transition disabled:opacity-40"
+              >
+                {loadingZip ? <Loader2 className="w-4 h-4 inline animate-spin mr-2" /> : <Archive className="w-4 h-4 inline mr-2" />}
+                {zipName || "SELECT .ZIP ARCHIVE"}
+              </button>
+              {zipProgress && (
+                <div className="text-[10px] text-white/50 truncate">{zipProgress}</div>
+              )}
+              <div className="text-[10px] text-white/40 leading-relaxed">
+                Reads PDFs, TXT, MD, HTML, JSON, CSV, XML, SRT/VTT, RTF, TEX. Each file becomes a distillable document. Designed for thousands of pages.
+              </div>
+            </>
+          )}
+
+          {/* Shared chapter / document list (archive + zip) */}
+          {(mode === "archive" || mode === "zip") && chapters.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] tracking-[0.3em] text-white/50">
+                  {chapters.length} {mode === "zip" ? "DOCUMENT" : "CHAPTER"}{chapters.length === 1 ? "" : "S"}
+                </div>
+                {!autoRunning ? (
+                  <button
+                    onClick={distillAll}
+                    disabled={streaming}
+                    className="text-[10px] tracking-[0.2em] border border-white/40 px-2 py-1 hover:bg-white hover:text-black transition disabled:opacity-30"
+                  >
+                    DISTILL ALL
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { autoCancelRef.current = true; }}
+                    className="text-[10px] tracking-[0.2em] border border-white/40 px-2 py-1 hover:bg-white hover:text-black transition"
+                  >
+                    STOP
+                  </button>
+                )}
+              </div>
+              <div className="max-h-[55vh] overflow-y-auto space-y-2 pr-1">
+                {chapters.map((ch) => {
+                  const done = distillations.some((d) => d.chapter_index === ch.index);
+                  return (
+                    <div key={ch.index} className={`border ${activeIdx === ch.index ? "border-white" : "border-white/15"} p-3`}>
+                      <div className="text-[11px] text-white truncate">{ch.title}</div>
+                      <div className="text-[10px] text-white/40 mt-1">{ch.word_count.toLocaleString()} words {done ? "· ✓ distilled" : ""}</div>
+                      <button
+                        onClick={() => distillChapter(ch)}
+                        disabled={streaming}
+                        className="mt-2 text-[10px] tracking-[0.2em] border border-white/30 px-2 py-1 hover:bg-white hover:text-black transition disabled:opacity-30"
+                      >
+                        DISTILL
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {distillations.length >= 2 && (
+                <button
+                  onClick={runSynthesis}
+                  disabled={streaming}
+                  className="w-full mt-2 border border-white py-2 text-[11px] tracking-[0.3em] hover:bg-white hover:text-black transition disabled:opacity-40"
+                >
+                  <Sparkles className="w-3 h-3 inline mr-2" />
+                  MASTER SYNTHESIS ({distillations.length})
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right output panel */}
         <div ref={outRef} className="overflow-y-auto p-6">
           <div className="text-[10px] tracking-[0.3em] text-white/40 mb-3">
-            {synthMode ? "MASTER SYNTHESIS" : "DISTILLATION"} {streaming && "· STREAMING…"}
+            {synthMode ? "MASTER SYNTHESIS" : "DISTILLATION"} {streaming && "· STREAMING…"} {autoRunning && "· AUTO"}
           </div>
           {output ? (
             <pre className="whitespace-pre-wrap text-xs text-white/90 leading-relaxed font-[Tektur]">{output}</pre>
