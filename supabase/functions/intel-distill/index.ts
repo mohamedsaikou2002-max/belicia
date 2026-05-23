@@ -35,50 +35,66 @@ STYLE: Maximum semantic density across a LONG document. No padding, no preamble,
 
 // Approx 1 token ≈ 3.5 chars. Anthropic input cap = 1M tokens. Stay well under.
 const MAX_INPUT_CHARS = 2_800_000;
+const ANTHROPIC_MAX_OUTPUT_TOKENS_PER_CALL = 64_000;
+const CONTINUATION_TAIL_CHARS = 24_000;
 
-async function callAnthropicStream(userMessage: string, maxTokens: number, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
+async function callAnthropicStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) {
     controller.enqueue(enc.encode(`data: ERROR: ANTHROPIC_API_KEY not configured\n\n`));
     return;
   }
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: maxTokens,
-      system: SYSTEM_PROMPT,
-      stream: true,
-      messages: [{ role: "user", content: userMessage }],
-    }),
-  });
-  if (!r.ok || !r.body) {
-    const t = await r.text();
-    controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
-    return;
-  }
-  const reader = r.body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
+
+  let currentMessage = userMessage;
+  let emittedTail = "";
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let nl;
-    while ((nl = buf.indexOf("\n")) !== -1) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (!payload) continue;
-      try {
-        const evt = JSON.parse(payload);
-        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-          controller.enqueue(enc.encode(`data: ${evt.delta.text}\n\n`));
-        }
-      } catch { /* ignore */ }
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: ANTHROPIC_MAX_OUTPUT_TOKENS_PER_CALL,
+        system: SYSTEM_PROMPT,
+        stream: true,
+        messages: [{ role: "user", content: currentMessage }],
+      }),
+    });
+    if (!r.ok || !r.body) {
+      const t = await r.text();
+      controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
+      return;
     }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    let stopReason = "";
+    let emittedThisPass = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) !== -1) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload) continue;
+        try {
+          const evt = JSON.parse(payload);
+          if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+            const text = evt.delta.text;
+            emittedThisPass += text;
+            emittedTail = (emittedTail + text).slice(-CONTINUATION_TAIL_CHARS);
+            controller.enqueue(enc.encode(`data: ${text}\n\n`));
+          }
+          if (evt.type === "message_delta" && evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
+        } catch { /* ignore */ }
+      }
+    }
+    if (stopReason !== "max_tokens" || !emittedThisPass.trim()) break;
+    const originalRoom = Math.max(0, MAX_INPUT_CHARS - emittedTail.length - 8000);
+    currentMessage = `Continue the previous distillation exactly where it stopped. Do not restart, recap, shorten, or conclude early. Keep following the original instruction and source; preserve exhaustive detail until the work is actually complete.\n\nORIGINAL INSTRUCTION AND SOURCE${userMessage.length > originalRoom ? " (truncated only to fit the provider input window)" : ""}:\n${userMessage.slice(0, originalRoom)}\n\nTAIL OF YOUR PREVIOUS OUTPUT TO CONTINUE FROM:\n${emittedTail}`;
   }
 }
 
@@ -100,7 +116,7 @@ function chunkText(text: string, maxChars: number): string[] {
   return chunks;
 }
 
-function streamMany(messages: { header?: string; user: string; maxTokens: number }[]): Response {
+function streamMany(messages: { header?: string; user: string }[]): Response {
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
@@ -108,7 +124,7 @@ function streamMany(messages: { header?: string; user: string; maxTokens: number
         for (let i = 0; i < messages.length; i++) {
           const m = messages[i];
           if (m.header) controller.enqueue(enc.encode(`data: ${m.header}\n\n`));
-          await callAnthropicStream(m.user, m.maxTokens, controller, enc);
+          await callAnthropicStream(m.user, controller, enc);
         }
         controller.enqueue(enc.encode("data: [DONE]\n\n"));
       } catch (e) {
@@ -138,7 +154,7 @@ Deno.serve(async (req) => {
       const synthHeader = `CROSS-CHAPTER MASTER SYNTHESIS for "${sourceTitle}":\n\nYou have distilled ${summaries.length} chapters. Produce a LONG-FORM MASTER SYNTHESIS with NO LENGTH CAP — write as long as the work warrants, no word/page/character limit — strictly internal to this source — do NOT reference outside frameworks, projects, or external context:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC (walk through how the book builds its case across chapters, in order)\n3. KEY CLAIMS & EVIDENCE (every load-bearing claim across the whole work, with the evidence/examples/data the source uses)\n4. NOTABLE TERMS & DEFINITIONS introduced across the work\n5. ILLUSTRATIVE EXAMPLES & CASES (preserve specifics — names, numbers, outcomes)\n6. INTERNAL TENSIONS / OPEN QUESTIONS the book raises but does not close\n7. OVERALL COMPRESSION RATIO\n\nBe exhaustive. Preserve specifics. Do not shorten at the expense of detail. Use every token you need.\n\nPrevious chapter distillations:\n`;
 
       if ((synthHeader.length + combinedFull.length) <= MAX_INPUT_CHARS) {
-        return streamMany([{ user: synthHeader + combinedFull, maxTokens: 48000 }]);
+        return streamMany([{ user: synthHeader + combinedFull }]);
       }
 
       // Hierarchical: group, partial-synth each, then final master synth.
@@ -152,18 +168,16 @@ Deno.serve(async (req) => {
       }
       if (cur.length) groups.push(cur);
 
-      const messages: { header?: string; user: string; maxTokens: number }[] = groups.map((g, i) => {
+      const messages: { header?: string; user: string }[] = groups.map((g, i) => {
         const text = g.map((s: any) => `CHAPTER: ${s.chapter_title || "Unknown"}\n${s.distillation || ""}`).join("\n\n---\n\n");
         return {
           header: `\n\n========== PARTIAL SYNTHESIS ${i + 1}/${groups.length} (chapters ${g[0].chapter_index}–${g[g.length-1].chapter_index}) ==========\n\n`,
           user: `PARTIAL CROSS-CHAPTER SYNTHESIS for "${sourceTitle}" — chapters ${g[0].chapter_index} through ${g[g.length-1].chapter_index} of ${summaries.length}.\n\nProduce a LONG-FORM, detailed synthesis of ONLY these chapters: thesis, full argumentative arc, every load-bearing claim with its evidence, notable terms, illustrative examples (preserve specifics — names, numbers, cases), tensions/open questions. Strictly internal to the source. Be exhaustive — this will feed the final master synthesis.\n\nDistillations:\n${text}`,
-          maxTokens: 48000,
         };
       });
       messages.push({
         header: `\n\n========== MASTER SYNTHESIS ==========\n\n`,
         user: `Note: the source was too large for one pass. Above are ${groups.length} partial syntheses covering all ${summaries.length} chapters of "${sourceTitle}". Now produce the final LONG-FORM MASTER SYNTHESIS integrating them — NO LENGTH CAP, no word/page/character limit, write as long as the work warrants — strictly internal to this source:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC across the whole work (walk through it in order)\n3. KEY CLAIMS & EVIDENCE (every load-bearing claim, with the source's evidence/examples/data)\n4. NOTABLE TERMS & DEFINITIONS\n5. ILLUSTRATIVE EXAMPLES & CASES (preserve specifics — names, numbers, outcomes)\n6. INTERNAL TENSIONS / OPEN QUESTIONS\n7. OVERALL COMPRESSION RATIO\n\nBe exhaustive. Preserve specifics. Use every token you need. Work from the partial syntheses you just produced as ground truth.`,
-        maxTokens: 48000,
       });
       return streamMany(messages);
     }
@@ -188,17 +202,15 @@ Produce a LONG-FORM distillation for this ${total && total > 1 ? "part" : "sourc
 
     const chunks = chunkText(text, MAX_INPUT_CHARS - 2000);
     if (chunks.length === 1) {
-      return streamMany([{ user: buildMsg(chunks[0]), maxTokens: 48000 }]);
+      return streamMany([{ user: buildMsg(chunks[0]) }]);
     }
     const msgs = chunks.map((c, i) => ({
       header: `\n\n========== PART ${i + 1}/${chunks.length} ==========\n\n`,
       user: buildMsg(c, i + 1, chunks.length),
-      maxTokens: 48000,
     }));
     msgs.push({
       header: `\n\n========== UNIFIED DISTILLATION ==========\n\n`,
       user: `The source "${sourceTitle}" was too large for one pass and was distilled in ${chunks.length} parts above. Now produce a single UNIFIED LONG-FORM distillation merging them, strictly internal to the source, in the full format (LOAD-BEARING IDEAS, KEY CLAIMS & EVIDENCE, INTERNAL STRUCTURE, NOTABLE TERMS / DEFINITIONS, ILLUSTRATIVE EXAMPLES & CASES, TENSIONS & OPEN QUESTIONS, COMPRESSION RATIO). NO LENGTH CAP — no word/page/character limit. Preserve specifics — names, numbers, examples — across the whole work. Use every token you need. Use the part distillations as ground truth.`,
-      maxTokens: 48000,
     });
     return streamMany(msgs);
   } catch (e) {
