@@ -184,7 +184,7 @@ ${focus ? `\nFOCUS DIRECTIVE — distill ONLY content relevant to:\n${focus}\nIg
 ${part}
 ---
 
-Produce the full distillation for this ${total && total > 1 ? "part" : "source"}. No length cap — be as long as needed, but every sentence must carry weight. Maximum density, zero padding.`;
+Produce a LONG-FORM distillation for this ${total && total > 1 ? "part" : "source"} — target the length of two full book chapters (8,000–15,000 words, more if the source is huge). Walk through the source in order. Preserve specific names, dates, numbers, quotes, examples, and case studies. Every sentence must carry weight, but DO NOT shorten at the expense of detail. Err on the side of MORE.`;
 
     const chunks = chunkText(text, MAX_INPUT_CHARS - 2000);
     if (chunks.length === 1) {
