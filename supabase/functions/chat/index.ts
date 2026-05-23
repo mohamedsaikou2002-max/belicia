@@ -102,6 +102,9 @@ async function askAnthropic(body: ChatBody, history: MemoryRow[]): Promise<strin
       .trim();
     if (!out) {
       console.error("Empty Anthropic response. stop_reason:", data.stop_reason, "content:", JSON.stringify(data.content));
+      if (data.stop_reason === "refusal") {
+        return "[Belicia note: the underlying model declined to answer that prompt. Try rephrasing, narrowing scope, or framing it as analysis/research.]";
+      }
     }
     return out || "I couldn't generate a response.";
   } finally {
