@@ -1,0 +1,158 @@
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
+const MODEL = Deno.env.get("DEFAULT_MODEL") ?? "claude-sonnet-4-5";
+const MAX_HISTORY_CHARS = 32_000;
+const REQUEST_TIMEOUT_MS = 110_000;
+
+type MemoryRow = { role: string; content: string };
+
+type ChatBody = {
+  message?: string;
+  userId?: string;
+  sessionId?: string;
+  archiveMode?: boolean;
+  inquiryMode?: string;
+  pemfContext?: {
+    coherenceScore?: number;
+    recoveryState?: string;
+    hrvScore?: number;
+  } | null;
+};
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function trimHistory(rows: MemoryRow[]): MemoryRow[] {
+  let used = 0;
+  const kept: MemoryRow[] = [];
+
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const size = rows[i].content.length;
+    if (used + size > MAX_HISTORY_CHARS) break;
+    used += size;
+    kept.unshift(rows[i]);
+  }
+
+  return kept;
+}
+
+function systemPrompt(body: ChatBody): string {
+  const mode = body.inquiryMode ?? "analysis";
+  const pemf = body.pemfContext
+    ? `\nPEMF context: coherence=${body.pemfContext.coherenceScore ?? "unknown"}, recovery=${body.pemfContext.recoveryState ?? "unknown"}, hrv=${body.pemfContext.hrvScore ?? "unknown"}.`
+    : "";
+
+  return `You are Belicia, a precise, grounded AI assistant. Respond directly, with depth when the user's question needs it. Current mode: ${mode}.${pemf}`;
+}
+
+async function askAnthropic(body: ChatBody, history: MemoryRow[]): Promise<string> {
+  const key = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!key) throw new Error("ANTHROPIC_API_KEY missing");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  const messages = trimHistory(history)
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+  messages.push({ role: "user", content: body.message!.trim() });
+
+  try {
+    const res = await fetch(ANTHROPIC_API, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": ANTHROPIC_VERSION,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 2048,
+        temperature: 0.7,
+        system: systemPrompt(body),
+        messages,
+      }),
+    });
+
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || `Anthropic returned ${res.status}`);
+
+    const data = JSON.parse(text);
+    return data.content?.map((part: { text?: string }) => part.text ?? "").join("").trim() || "I couldn't generate a response.";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  try {
+    const body = (await req.json()) as ChatBody;
+    const message = body.message?.trim();
+
+    if (!message) return json({ error: "message is required" }, 400);
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false } },
+    );
+
+    const userId = body.userId ?? "default";
+    const sessionId = body.sessionId ?? crypto.randomUUID();
+
+    const { data: previous } = await supabase
+      .from("belicia_memory")
+      .select("role, content")
+      .eq("user_id", userId)
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true })
+      .limit(80);
+
+    const response = await askAnthropic(body, previous ?? []);
+
+    await supabase.from("belicia_memory").insert([
+      {
+        user_id: userId,
+        session_id: sessionId,
+        role: "user",
+        content: message,
+        inquiry_mode: body.inquiryMode ?? null,
+        memory_type: body.archiveMode ? "archive" : "exchange",
+        pemf_coherence_at_time: body.pemfContext?.coherenceScore ?? null,
+      },
+      {
+        user_id: userId,
+        session_id: sessionId,
+        role: "assistant",
+        content: response,
+        inquiry_mode: body.inquiryMode ?? null,
+        memory_type: body.archiveMode ? "archive" : "exchange",
+        pemf_coherence_at_time: body.pemfContext?.coherenceScore ?? null,
+      },
+    ]);
+
+    return json({ response, sessionId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const status = error instanceof Error && error.name === "AbortError" ? 504 : 500;
+    return json({ error: message }, status);
+  }
+});
