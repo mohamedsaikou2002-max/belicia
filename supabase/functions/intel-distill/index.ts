@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
       const synthHeader = `CROSS-CHAPTER SYNTHESIS for "${sourceTitle}":\n\nYou have distilled ${summaries.length} chapters. Produce a MASTER SYNTHESIS strictly internal to this source — do NOT reference outside frameworks, projects, or external context:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC (how the book builds its case across chapters)\n3. KEY CLAIMS & EVIDENCE (strongest, most load-bearing across the whole work)\n4. INTERNAL TENSIONS / OPEN QUESTIONS the book raises but does not close\n5. OVERALL COMPRESSION RATIO\n\nPrevious chapter distillations:\n`;
 
       if ((synthHeader.length + combinedFull.length) <= MAX_INPUT_CHARS) {
-        return streamMany([{ user: synthHeader + combinedFull, maxTokens: 16000 }]);
+        return streamMany([{ user: synthHeader + combinedFull, maxTokens: 48000 }]);
       }
 
       // Hierarchical: group, partial-synth each, then final master synth.
@@ -157,13 +157,13 @@ Deno.serve(async (req) => {
         return {
           header: `\n\n========== PARTIAL SYNTHESIS ${i + 1}/${groups.length} (chapters ${g[0].chapter_index}–${g[g.length-1].chapter_index}) ==========\n\n`,
           user: `PARTIAL CROSS-CHAPTER SYNTHESIS for "${sourceTitle}" — chapters ${g[0].chapter_index} through ${g[g.length-1].chapter_index} of ${summaries.length}.\n\nProduce a tight synthesis of ONLY these chapters: thesis, argumentative arc, key claims & evidence, tensions/open questions. Strictly internal to the source.\n\nDistillations:\n${text}`,
-          maxTokens: 16000,
+          maxTokens: 48000,
         };
       });
       messages.push({
         header: `\n\n========== MASTER SYNTHESIS ==========\n\n`,
         user: `Note: the source was too large for one pass. Above are ${groups.length} partial syntheses covering all ${summaries.length} chapters of "${sourceTitle}". Now produce the final MASTER SYNTHESIS integrating them — strictly internal to this source:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC across the whole work\n3. KEY CLAIMS & EVIDENCE (most load-bearing)\n4. INTERNAL TENSIONS / OPEN QUESTIONS\n5. OVERALL COMPRESSION RATIO\n\nWork from the partial syntheses you just produced as ground truth.`,
-        maxTokens: 16000,
+        maxTokens: 48000,
       });
       return streamMany(messages);
     }
@@ -188,17 +188,17 @@ Produce the full distillation for this ${total && total > 1 ? "part" : "source"}
 
     const chunks = chunkText(text, MAX_INPUT_CHARS - 2000);
     if (chunks.length === 1) {
-      return streamMany([{ user: buildMsg(chunks[0]), maxTokens: 16000 }]);
+      return streamMany([{ user: buildMsg(chunks[0]), maxTokens: 48000 }]);
     }
     const msgs = chunks.map((c, i) => ({
       header: `\n\n========== PART ${i + 1}/${chunks.length} ==========\n\n`,
       user: buildMsg(c, i + 1, chunks.length),
-      maxTokens: 16000,
+      maxTokens: 48000,
     }));
     msgs.push({
       header: `\n\n========== UNIFIED DISTILLATION ==========\n\n`,
       user: `The source "${sourceTitle}" was too large for one pass and was distilled in ${chunks.length} parts above. Now produce a single UNIFIED distillation merging them, strictly internal to the source, in the standard format (LOAD-BEARING IDEAS, KEY CLAIMS & EVIDENCE, INTERNAL STRUCTURE, NOTABLE TERMS / DEFINITIONS, TENSIONS & OPEN QUESTIONS, COMPRESSION RATIO). Use the part distillations as ground truth.`,
-      maxTokens: 16000,
+      maxTokens: 48000,
     });
     return streamMany(msgs);
   } catch (e) {
