@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const SYSTEM_PROMPT = `You are a high-density distillation engine producing LONG-FORM, exhaustive distillations. Your task: compress a book/source into a deeply detailed, multi-section breakdown that preserves every load-bearing argument, sub-argument, example, and definition. Stay strictly inside the source — do NOT bridge to outside frameworks, projects, or external schemas. No external context. No personalization. Just the work itself.
 
-LENGTH REQUIREMENT: Aim for the length of TWO FULL BOOK CHAPTERS (roughly 8,000–15,000 words for a full source, scaling up for very large sources of thousands of pages). Do NOT be terse. Do NOT summarize when you can preserve. Density does not mean brevity — it means zero wasted words across a LONG document. If the source is large (hundreds or thousands of pages), the distillation must be correspondingly large and granular. Walk through the source's arc in order, then synthesize.
+LENGTH: NO CAP. Write as long as the source warrants — there is no word limit, no page limit, no character limit. Do NOT be terse. Do NOT summarize when you can preserve. Density does not mean brevity — it means zero wasted words across a document that may be enormous. For sources of hundreds or thousands of pages, the distillation should be correspondingly massive and granular. Walk through the source's arc in order, then synthesize. Use every token you need.
 
 DISTILLATION OUTPUT FORMAT — follow this exactly:
 
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       if (!summaries.length) return new Response(JSON.stringify({ error: "no summaries" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
       const combinedFull = summaries.map((s: any) => `CHAPTER: ${s.chapter_title || "Unknown"}\n${s.distillation || ""}`).join("\n\n---\n\n");
-      const synthHeader = `CROSS-CHAPTER MASTER SYNTHESIS for "${sourceTitle}":\n\nYou have distilled ${summaries.length} chapters. Produce a LONG-FORM MASTER SYNTHESIS (target two full chapters in length, 8,000–15,000+ words — more if there are many source chapters) strictly internal to this source — do NOT reference outside frameworks, projects, or external context:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC (walk through how the book builds its case across chapters, in order)\n3. KEY CLAIMS & EVIDENCE (every load-bearing claim across the whole work, with the evidence/examples/data the source uses)\n4. NOTABLE TERMS & DEFINITIONS introduced across the work\n5. ILLUSTRATIVE EXAMPLES & CASES (preserve specifics — names, numbers, outcomes)\n6. INTERNAL TENSIONS / OPEN QUESTIONS the book raises but does not close\n7. OVERALL COMPRESSION RATIO and approximate word count\n\nBe exhaustive. Preserve specifics. Do not shorten at the expense of detail.\n\nPrevious chapter distillations:\n`;
+      const synthHeader = `CROSS-CHAPTER MASTER SYNTHESIS for "${sourceTitle}":\n\nYou have distilled ${summaries.length} chapters. Produce a LONG-FORM MASTER SYNTHESIS with NO LENGTH CAP — write as long as the work warrants, no word/page/character limit — strictly internal to this source — do NOT reference outside frameworks, projects, or external context:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC (walk through how the book builds its case across chapters, in order)\n3. KEY CLAIMS & EVIDENCE (every load-bearing claim across the whole work, with the evidence/examples/data the source uses)\n4. NOTABLE TERMS & DEFINITIONS introduced across the work\n5. ILLUSTRATIVE EXAMPLES & CASES (preserve specifics — names, numbers, outcomes)\n6. INTERNAL TENSIONS / OPEN QUESTIONS the book raises but does not close\n7. OVERALL COMPRESSION RATIO\n\nBe exhaustive. Preserve specifics. Do not shorten at the expense of detail. Use every token you need.\n\nPrevious chapter distillations:\n`;
 
       if ((synthHeader.length + combinedFull.length) <= MAX_INPUT_CHARS) {
         return streamMany([{ user: synthHeader + combinedFull, maxTokens: 48000 }]);
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
       });
       messages.push({
         header: `\n\n========== MASTER SYNTHESIS ==========\n\n`,
-        user: `Note: the source was too large for one pass. Above are ${groups.length} partial syntheses covering all ${summaries.length} chapters of "${sourceTitle}". Now produce the final LONG-FORM MASTER SYNTHESIS integrating them — target two full chapters in length (8,000–15,000+ words, scale up for very large works) — strictly internal to this source:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC across the whole work (walk through it in order)\n3. KEY CLAIMS & EVIDENCE (every load-bearing claim, with the source's evidence/examples/data)\n4. NOTABLE TERMS & DEFINITIONS\n5. ILLUSTRATIVE EXAMPLES & CASES (preserve specifics — names, numbers, outcomes)\n6. INTERNAL TENSIONS / OPEN QUESTIONS\n7. OVERALL COMPRESSION RATIO and approximate word count\n\nBe exhaustive. Preserve specifics. Work from the partial syntheses you just produced as ground truth.`,
+        user: `Note: the source was too large for one pass. Above are ${groups.length} partial syntheses covering all ${summaries.length} chapters of "${sourceTitle}". Now produce the final LONG-FORM MASTER SYNTHESIS integrating them — NO LENGTH CAP, no word/page/character limit, write as long as the work warrants — strictly internal to this source:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC across the whole work (walk through it in order)\n3. KEY CLAIMS & EVIDENCE (every load-bearing claim, with the source's evidence/examples/data)\n4. NOTABLE TERMS & DEFINITIONS\n5. ILLUSTRATIVE EXAMPLES & CASES (preserve specifics — names, numbers, outcomes)\n6. INTERNAL TENSIONS / OPEN QUESTIONS\n7. OVERALL COMPRESSION RATIO\n\nBe exhaustive. Preserve specifics. Use every token you need. Work from the partial syntheses you just produced as ground truth.`,
         maxTokens: 48000,
       });
       return streamMany(messages);
@@ -184,7 +184,7 @@ ${focus ? `\nFOCUS DIRECTIVE — distill ONLY content relevant to:\n${focus}\nIg
 ${part}
 ---
 
-Produce a LONG-FORM distillation for this ${total && total > 1 ? "part" : "source"} — target the length of two full book chapters (8,000–15,000 words, more if the source is huge). Walk through the source in order. Preserve specific names, dates, numbers, quotes, examples, and case studies. Every sentence must carry weight, but DO NOT shorten at the expense of detail. Err on the side of MORE.`;
+Produce a LONG-FORM distillation for this ${total && total > 1 ? "part" : "source"} — NO LENGTH CAP, no word/page/character limit, write as long as the material warrants. Walk through the source in order. Preserve specific names, dates, numbers, quotes, examples, and case studies. Every sentence must carry weight, but DO NOT shorten at the expense of detail. Err on the side of MORE. Use every token you need.`;
 
     const chunks = chunkText(text, MAX_INPUT_CHARS - 2000);
     if (chunks.length === 1) {
@@ -197,7 +197,7 @@ Produce a LONG-FORM distillation for this ${total && total > 1 ? "part" : "sourc
     }));
     msgs.push({
       header: `\n\n========== UNIFIED DISTILLATION ==========\n\n`,
-      user: `The source "${sourceTitle}" was too large for one pass and was distilled in ${chunks.length} parts above. Now produce a single UNIFIED LONG-FORM distillation merging them, strictly internal to the source, in the full format (LOAD-BEARING IDEAS, KEY CLAIMS & EVIDENCE, INTERNAL STRUCTURE, NOTABLE TERMS / DEFINITIONS, ILLUSTRATIVE EXAMPLES & CASES, TENSIONS & OPEN QUESTIONS, COMPRESSION RATIO). Target two-chapters worth of length (8,000–15,000+ words). Preserve specifics — names, numbers, examples — across the whole work. Use the part distillations as ground truth.`,
+      user: `The source "${sourceTitle}" was too large for one pass and was distilled in ${chunks.length} parts above. Now produce a single UNIFIED LONG-FORM distillation merging them, strictly internal to the source, in the full format (LOAD-BEARING IDEAS, KEY CLAIMS & EVIDENCE, INTERNAL STRUCTURE, NOTABLE TERMS / DEFINITIONS, ILLUSTRATIVE EXAMPLES & CASES, TENSIONS & OPEN QUESTIONS, COMPRESSION RATIO). NO LENGTH CAP — no word/page/character limit. Preserve specifics — names, numbers, examples — across the whole work. Use every token you need. Use the part distillations as ground truth.`,
       maxTokens: 48000,
     });
     return streamMany(msgs);
