@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
         const text = g.map((s: any) => `CHAPTER: ${s.chapter_title || "Unknown"}\n${s.distillation || ""}`).join("\n\n---\n\n");
         return {
           header: `\n\n========== PARTIAL SYNTHESIS ${i + 1}/${groups.length} (chapters ${g[0].chapter_index}–${g[g.length-1].chapter_index}) ==========\n\n`,
-          user: `PARTIAL CROSS-CHAPTER SYNTHESIS for "${sourceTitle}" — chapters ${g[0].chapter_index} through ${g[g.length-1].chapter_index} of ${summaries.length}.\n\nProduce a tight synthesis of ONLY these chapters: thesis, argumentative arc, key claims & evidence, tensions/open questions. Strictly internal to the source.\n\nDistillations:\n${text}`,
+          user: `PARTIAL CROSS-CHAPTER SYNTHESIS for "${sourceTitle}" — chapters ${g[0].chapter_index} through ${g[g.length-1].chapter_index} of ${summaries.length}.\n\nProduce a LONG-FORM, detailed synthesis of ONLY these chapters: thesis, full argumentative arc, every load-bearing claim with its evidence, notable terms, illustrative examples (preserve specifics — names, numbers, cases), tensions/open questions. Strictly internal to the source. Be exhaustive — this will feed the final master synthesis.\n\nDistillations:\n${text}`,
           maxTokens: 48000,
         };
       });
