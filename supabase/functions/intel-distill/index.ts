@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
       const synthHeader = `CROSS-CHAPTER MASTER SYNTHESIS for "${sourceTitle}":\n\nYou have distilled ${summaries.length} chapters. Produce a LONG-FORM MASTER SYNTHESIS with NO LENGTH CAP — write as long as the work warrants, no word/page/character limit — strictly internal to this source — do NOT reference outside frameworks, projects, or external context:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC (walk through how the book builds its case across chapters, in order)\n3. KEY CLAIMS & EVIDENCE (every load-bearing claim across the whole work, with the evidence/examples/data the source uses)\n4. NOTABLE TERMS & DEFINITIONS introduced across the work\n5. ILLUSTRATIVE EXAMPLES & CASES (preserve specifics — names, numbers, outcomes)\n6. INTERNAL TENSIONS / OPEN QUESTIONS the book raises but does not close\n7. OVERALL COMPRESSION RATIO\n\nBe exhaustive. Preserve specifics. Do not shorten at the expense of detail. Use every token you need.\n\nPrevious chapter distillations:\n`;
 
       if ((synthHeader.length + combinedFull.length) <= MAX_INPUT_CHARS) {
-        return streamMany([{ user: synthHeader + combinedFull, maxTokens: 48000 }]);
+        return streamMany([{ user: synthHeader + combinedFull }]);
       }
 
       // Hierarchical: group, partial-synth each, then final master synth.
@@ -168,18 +168,16 @@ Deno.serve(async (req) => {
       }
       if (cur.length) groups.push(cur);
 
-      const messages: { header?: string; user: string; maxTokens: number }[] = groups.map((g, i) => {
+      const messages: { header?: string; user: string }[] = groups.map((g, i) => {
         const text = g.map((s: any) => `CHAPTER: ${s.chapter_title || "Unknown"}\n${s.distillation || ""}`).join("\n\n---\n\n");
         return {
           header: `\n\n========== PARTIAL SYNTHESIS ${i + 1}/${groups.length} (chapters ${g[0].chapter_index}–${g[g.length-1].chapter_index}) ==========\n\n`,
           user: `PARTIAL CROSS-CHAPTER SYNTHESIS for "${sourceTitle}" — chapters ${g[0].chapter_index} through ${g[g.length-1].chapter_index} of ${summaries.length}.\n\nProduce a LONG-FORM, detailed synthesis of ONLY these chapters: thesis, full argumentative arc, every load-bearing claim with its evidence, notable terms, illustrative examples (preserve specifics — names, numbers, cases), tensions/open questions. Strictly internal to the source. Be exhaustive — this will feed the final master synthesis.\n\nDistillations:\n${text}`,
-          maxTokens: 48000,
         };
       });
       messages.push({
         header: `\n\n========== MASTER SYNTHESIS ==========\n\n`,
         user: `Note: the source was too large for one pass. Above are ${groups.length} partial syntheses covering all ${summaries.length} chapters of "${sourceTitle}". Now produce the final LONG-FORM MASTER SYNTHESIS integrating them — NO LENGTH CAP, no word/page/character limit, write as long as the work warrants — strictly internal to this source:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC across the whole work (walk through it in order)\n3. KEY CLAIMS & EVIDENCE (every load-bearing claim, with the source's evidence/examples/data)\n4. NOTABLE TERMS & DEFINITIONS\n5. ILLUSTRATIVE EXAMPLES & CASES (preserve specifics — names, numbers, outcomes)\n6. INTERNAL TENSIONS / OPEN QUESTIONS\n7. OVERALL COMPRESSION RATIO\n\nBe exhaustive. Preserve specifics. Use every token you need. Work from the partial syntheses you just produced as ground truth.`,
-        maxTokens: 48000,
       });
       return streamMany(messages);
     }
@@ -204,17 +202,15 @@ Produce a LONG-FORM distillation for this ${total && total > 1 ? "part" : "sourc
 
     const chunks = chunkText(text, MAX_INPUT_CHARS - 2000);
     if (chunks.length === 1) {
-      return streamMany([{ user: buildMsg(chunks[0]), maxTokens: 48000 }]);
+      return streamMany([{ user: buildMsg(chunks[0]) }]);
     }
     const msgs = chunks.map((c, i) => ({
       header: `\n\n========== PART ${i + 1}/${chunks.length} ==========\n\n`,
       user: buildMsg(c, i + 1, chunks.length),
-      maxTokens: 48000,
     }));
     msgs.push({
       header: `\n\n========== UNIFIED DISTILLATION ==========\n\n`,
       user: `The source "${sourceTitle}" was too large for one pass and was distilled in ${chunks.length} parts above. Now produce a single UNIFIED LONG-FORM distillation merging them, strictly internal to the source, in the full format (LOAD-BEARING IDEAS, KEY CLAIMS & EVIDENCE, INTERNAL STRUCTURE, NOTABLE TERMS / DEFINITIONS, ILLUSTRATIVE EXAMPLES & CASES, TENSIONS & OPEN QUESTIONS, COMPRESSION RATIO). NO LENGTH CAP — no word/page/character limit. Preserve specifics — names, numbers, examples — across the whole work. Use every token you need. Use the part distillations as ground truth.`,
-      maxTokens: 48000,
     });
     return streamMany(msgs);
   } catch (e) {
