@@ -209,7 +209,7 @@ serve(async (req: Request) => {
       .order("created_at", { ascending: true })
       .limit(80);
 
-    const response = await askAnthropic(body, previous ?? []);
+    const response = await askWithFallback(body, previous ?? []);
 
     await supabase.from("belicia_memory").insert([
       {
