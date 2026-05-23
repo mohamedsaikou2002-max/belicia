@@ -82,7 +82,7 @@ async function askAnthropic(body: ChatBody, history: MemoryRow[]): Promise<strin
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 2048,
+        max_tokens: 8192,
         temperature: 0.7,
         system: systemPrompt(body),
         messages,
