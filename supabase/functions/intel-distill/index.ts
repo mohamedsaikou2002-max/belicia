@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
       });
       messages.push({
         header: `\n\n========== MASTER SYNTHESIS ==========\n\n`,
-        user: `Note: the source was too large for one pass. Above are ${groups.length} partial syntheses covering all ${summaries.length} chapters of "${sourceTitle}". Now produce the final MASTER SYNTHESIS integrating them — strictly internal to this source:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC across the whole work\n3. KEY CLAIMS & EVIDENCE (most load-bearing)\n4. INTERNAL TENSIONS / OPEN QUESTIONS\n5. OVERALL COMPRESSION RATIO\n\nWork from the partial syntheses you just produced as ground truth.`,
+        user: `Note: the source was too large for one pass. Above are ${groups.length} partial syntheses covering all ${summaries.length} chapters of "${sourceTitle}". Now produce the final LONG-FORM MASTER SYNTHESIS integrating them — target two full chapters in length (8,000–15,000+ words, scale up for very large works) — strictly internal to this source:\n\n1. BOOK-LEVEL LOAD-BEARING THESIS\n2. CORE ARGUMENTATIVE ARC across the whole work (walk through it in order)\n3. KEY CLAIMS & EVIDENCE (every load-bearing claim, with the source's evidence/examples/data)\n4. NOTABLE TERMS & DEFINITIONS\n5. ILLUSTRATIVE EXAMPLES & CASES (preserve specifics — names, numbers, outcomes)\n6. INTERNAL TENSIONS / OPEN QUESTIONS\n7. OVERALL COMPRESSION RATIO and approximate word count\n\nBe exhaustive. Preserve specifics. Work from the partial syntheses you just produced as ground truth.`,
         maxTokens: 48000,
       });
       return streamMany(messages);
