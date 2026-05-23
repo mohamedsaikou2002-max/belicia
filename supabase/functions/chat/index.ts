@@ -90,10 +90,20 @@ async function askAnthropic(body: ChatBody, history: MemoryRow[]): Promise<strin
     });
 
     const text = await res.text();
-    if (!res.ok) throw new Error(text || `Anthropic returned ${res.status}`);
+    if (!res.ok) {
+      console.error("Anthropic error:", res.status, text);
+      throw new Error(text || `Anthropic returned ${res.status}`);
+    }
 
     const data = JSON.parse(text);
-    return data.content?.map((part: { text?: string }) => part.text ?? "").join("").trim() || "I couldn't generate a response.";
+    const out = (data.content ?? [])
+      .map((part: { type?: string; text?: string }) => (part.type === "text" ? part.text ?? "" : ""))
+      .join("")
+      .trim();
+    if (!out) {
+      console.error("Empty Anthropic response. stop_reason:", data.stop_reason, "content:", JSON.stringify(data.content));
+    }
+    return out || "I couldn't generate a response.";
   } finally {
     clearTimeout(timeout);
   }
