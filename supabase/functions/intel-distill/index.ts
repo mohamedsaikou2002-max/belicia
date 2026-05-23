@@ -35,50 +35,66 @@ STYLE: Maximum semantic density across a LONG document. No padding, no preamble,
 
 // Approx 1 token ≈ 3.5 chars. Anthropic input cap = 1M tokens. Stay well under.
 const MAX_INPUT_CHARS = 2_800_000;
+const ANTHROPIC_MAX_OUTPUT_TOKENS_PER_CALL = 64_000;
+const CONTINUATION_TAIL_CHARS = 24_000;
 
-async function callAnthropicStream(userMessage: string, maxTokens: number, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
+async function callAnthropicStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) {
     controller.enqueue(enc.encode(`data: ERROR: ANTHROPIC_API_KEY not configured\n\n`));
     return;
   }
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: maxTokens,
-      system: SYSTEM_PROMPT,
-      stream: true,
-      messages: [{ role: "user", content: userMessage }],
-    }),
-  });
-  if (!r.ok || !r.body) {
-    const t = await r.text();
-    controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
-    return;
-  }
-  const reader = r.body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
+
+  let currentMessage = userMessage;
+  let emittedTail = "";
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let nl;
-    while ((nl = buf.indexOf("\n")) !== -1) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (!payload) continue;
-      try {
-        const evt = JSON.parse(payload);
-        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-          controller.enqueue(enc.encode(`data: ${evt.delta.text}\n\n`));
-        }
-      } catch { /* ignore */ }
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: ANTHROPIC_MAX_OUTPUT_TOKENS_PER_CALL,
+        system: SYSTEM_PROMPT,
+        stream: true,
+        messages: [{ role: "user", content: currentMessage }],
+      }),
+    });
+    if (!r.ok || !r.body) {
+      const t = await r.text();
+      controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
+      return;
     }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    let stopReason = "";
+    let emittedThisPass = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) !== -1) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload) continue;
+        try {
+          const evt = JSON.parse(payload);
+          if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+            const text = evt.delta.text;
+            emittedThisPass += text;
+            emittedTail = (emittedTail + text).slice(-CONTINUATION_TAIL_CHARS);
+            controller.enqueue(enc.encode(`data: ${text}\n\n`));
+          }
+          if (evt.type === "message_delta" && evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
+        } catch { /* ignore */ }
+      }
+    }
+    if (stopReason !== "max_tokens" || !emittedThisPass.trim()) break;
+    const originalRoom = Math.max(0, MAX_INPUT_CHARS - emittedTail.length - 8000);
+    currentMessage = `Continue the previous distillation exactly where it stopped. Do not restart, recap, shorten, or conclude early. Keep following the original instruction and source; preserve exhaustive detail until the work is actually complete.\n\nORIGINAL INSTRUCTION AND SOURCE${userMessage.length > originalRoom ? " (truncated only to fit the provider input window)" : ""}:\n${userMessage.slice(0, originalRoom)}\n\nTAIL OF YOUR PREVIOUS OUTPUT TO CONTINUE FROM:\n${emittedTail}`;
   }
 }
 
@@ -100,7 +116,7 @@ function chunkText(text: string, maxChars: number): string[] {
   return chunks;
 }
 
-function streamMany(messages: { header?: string; user: string; maxTokens: number }[]): Response {
+function streamMany(messages: { header?: string; user: string }[]): Response {
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
@@ -108,7 +124,7 @@ function streamMany(messages: { header?: string; user: string; maxTokens: number
         for (let i = 0; i < messages.length; i++) {
           const m = messages[i];
           if (m.header) controller.enqueue(enc.encode(`data: ${m.header}\n\n`));
-          await callAnthropicStream(m.user, m.maxTokens, controller, enc);
+          await callAnthropicStream(m.user, controller, enc);
         }
         controller.enqueue(enc.encode("data: [DONE]\n\n"));
       } catch (e) {
