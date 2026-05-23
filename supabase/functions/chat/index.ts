@@ -1,265 +1,158 @@
-/**
- * Belicia — Supabase Edge Function: chat/index.ts
- *
- * Architecture: thin auth + routing proxy.
- * Heavy work (ChromaDB, embeddings, model calls) stays in FastAPI.
- * This function: authenticates, enriches headers, streams response back.
- *
- * Model: claude-opus-4-7 (current flagship as of May 2026)
- */
-
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const DEFAULT_MODEL = Deno.env.get("DEFAULT_MODEL") ?? "claude-opus-4-7";
-const FASTAPI_URL   = Deno.env.get("FASTAPI_URL") ?? "";
-const FASTAPI_SECRET = Deno.env.get("FASTAPI_SECRET") ?? "";
-const DIRECT_KEY    = Deno.env.get("DIRECT_ANTHROPIC_KEY") ?? Deno.env.get("ANTHROPIC_API_KEY") ?? "";
-
-const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_VER = "2023-06-01";
-
-const REQUEST_TIMEOUT_MS = 120_000;
-const MAX_HISTORY_TOKENS_EST = 12_000;
-
-// ─── CORS helpers ────────────────────────────────────────────────────────────
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-room-id, x-agent-mode",
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function corsPreflightResponse(): Response {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
+const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
+const MODEL = Deno.env.get("DEFAULT_MODEL") ?? "claude-sonnet-4-5";
+const MAX_HISTORY_CHARS = 32_000;
+const REQUEST_TIMEOUT_MS = 110_000;
+
+type MemoryRow = { role: string; content: string };
+
+type ChatBody = {
+  message?: string;
+  userId?: string;
+  sessionId?: string;
+  archiveMode?: boolean;
+  inquiryMode?: string;
+  pemfContext?: {
+    coherenceScore?: number;
+    recoveryState?: string;
+    hrvScore?: number;
+  } | null;
+};
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
-function jsonError(msg: string, status = 400): Response {
-  return new Response(
-    JSON.stringify({ error: msg }),
-    { status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-  );
+function trimHistory(rows: MemoryRow[]): MemoryRow[] {
+  let used = 0;
+  const kept: MemoryRow[] = [];
+
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const size = rows[i].content.length;
+    if (used + size > MAX_HISTORY_CHARS) break;
+    used += size;
+    kept.unshift(rows[i]);
+  }
+
+  return kept;
 }
 
-// ─── Token estimator ────────────────────────────────────────────────────────
+function systemPrompt(body: ChatBody): string {
+  const mode = body.inquiryMode ?? "analysis";
+  const pemf = body.pemfContext
+    ? `\nPEMF context: coherence=${body.pemfContext.coherenceScore ?? "unknown"}, recovery=${body.pemfContext.recoveryState ?? "unknown"}, hrv=${body.pemfContext.hrvScore ?? "unknown"}.`
+    : "";
 
-function estimateTokens(messages: ChatMessage[]): number {
-  return messages.reduce((acc, m) => {
-    const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-    return acc + Math.ceil(text.length / 4);
-  }, 0);
+  return `You are Belicia, a precise, grounded AI assistant. Respond directly, with depth when the user's question needs it. Current mode: ${mode}.${pemf}`;
 }
 
-function trimHistory(messages: ChatMessage[], maxTokens: number): ChatMessage[] {
-  const system  = messages.filter(m => m.role === "system");
-  const convo   = messages.filter(m => m.role !== "system");
+async function askAnthropic(body: ChatBody, history: MemoryRow[]): Promise<string> {
+  const key = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!key) throw new Error("ANTHROPIC_API_KEY missing");
 
-  let budget = maxTokens - estimateTokens(system);
-  const kept: ChatMessage[] = [];
-
-  for (let i = convo.length - 1; i >= 0; i--) {
-    const t = estimateTokens([convo[i]]);
-    if (budget - t < 0) break;
-    budget -= t;
-    kept.unshift(convo[i]);
-  }
-
-  return [...system, ...kept];
-}
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface ChatMessage {
-  role:    "system" | "user" | "assistant";
-  content: string | unknown;
-}
-
-interface ChatRequest {
-  messages:    ChatMessage[];
-  model?:      string;
-  stream?:     boolean;
-  max_tokens?: number;
-  temperature?: number;
-  room_id?:   string;
-  agent_mode?: string;
-  use_rag?:   boolean;
-}
-
-// ─── Main handler ────────────────────────────────────────────────────────────
-
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return corsPreflightResponse();
-  if (req.method !== "POST")    return jsonError("Method not allowed", 405);
-
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) {
-    return jsonError("Missing or malformed Authorization header", 401);
-  }
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
-    { auth: { persistSession: false } }
-  );
-
-  const token = authHeader.replace("Bearer ", "").trim();
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-  if (authError || !user) {
-    return jsonError("Unauthorized", 401);
-  }
-
-  let body: ChatRequest;
-  try {
-    body = await req.json() as ChatRequest;
-  } catch {
-    return jsonError("Invalid JSON body");
-  }
-
-  if (!Array.isArray(body.messages) || body.messages.length === 0) {
-    return jsonError("messages array is required and must not be empty");
-  }
-
-  body.messages = trimHistory(body.messages, MAX_HISTORY_TOKENS_EST);
-
-  body.model     = body.model ?? DEFAULT_MODEL;
-  body.stream    = body.stream ?? true;
-  body.max_tokens = body.max_tokens ?? 4096;
-
-  if (FASTAPI_URL) {
-    return await proxyToFastAPI(req, body, user.id);
-  } else if (DIRECT_KEY) {
-    return await callAnthropicDirect(body);
-  } else {
-    return jsonError(
-      "No backend configured. Set FASTAPI_URL or DIRECT_ANTHROPIC_KEY in edge function secrets.",
-      503
-    );
-  }
-});
-
-// ─── Route A: Proxy to FastAPI ────────────────────────────────────────────────
-
-async function proxyToFastAPI(
-  originalReq: Request,
-  body: ChatRequest,
-  userId: string
-): Promise<Response> {
   const controller = new AbortController();
-  const timeout    = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  const roomId    = originalReq.headers.get("x-room-id")    ?? body.room_id    ?? "";
-  const agentMode = originalReq.headers.get("x-agent-mode") ?? body.agent_mode ?? "";
+  const messages = trimHistory(history)
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-  try {
-    const upstream = await fetch(`${FASTAPI_URL}/chat`, {
-      method:  "POST",
-      signal:  controller.signal,
-      headers: {
-        "Content-Type":    "application/json",
-        "X-User-Id":       userId,
-        "X-Belicia-Token": FASTAPI_SECRET,
-        "X-Room-Id":       roomId,
-        "X-Agent-Mode":    agentMode,
-      },
-      body: JSON.stringify(body),
-    });
-
-    clearTimeout(timeout);
-
-    if (!upstream.ok) {
-      const errText = await upstream.text();
-      return new Response(errText, {
-        status: upstream.status,
-        headers: {
-          ...CORS_HEADERS,
-          "Content-Type": upstream.headers.get("Content-Type") ?? "application/json",
-        },
-      });
-    }
-
-    return new Response(upstream.body, {
-      status: 200,
-      headers: {
-        ...CORS_HEADERS,
-        "Content-Type":  upstream.headers.get("Content-Type") ?? "text/event-stream",
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-      },
-    });
-
-  } catch (err) {
-    clearTimeout(timeout);
-
-    const isTimeout = (err as Error).name === "AbortError";
-
-    if (DIRECT_KEY && !isTimeout) {
-      console.warn("[belicia/chat] FastAPI unreachable, falling back to direct Anthropic call");
-      return await callAnthropicDirect(body);
-    }
-
-    return jsonError(
-      isTimeout ? "Request timed out" : `FastAPI error: ${(err as Error).message}`,
-      isTimeout ? 504 : 502
-    );
-  }
-}
-
-// ─── Route B: Direct Anthropic ───────────────────────────────────────────────
-
-async function callAnthropicDirect(body: ChatRequest): Promise<Response> {
-  const controller = new AbortController();
-  const timeout    = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  const systemMessages = body.messages.filter(m => m.role === "system");
-  const chatMessages   = body.messages.filter(m => m.role !== "system");
-
-  const systemPrompt = systemMessages
-    .map(m => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
-    .join("\n\n");
-
-  const payload = {
-    model:      body.model,
-    max_tokens: body.max_tokens,
-    temperature: body.temperature,
-    stream:     body.stream,
-    ...(systemPrompt ? { system: systemPrompt } : {}),
-    messages:   chatMessages,
-  };
+  messages.push({ role: "user", content: body.message!.trim() });
 
   try {
-    const anthropicRes = await fetch(ANTHROPIC_API, {
+    const res = await fetch(ANTHROPIC_API, {
       method: "POST",
       signal: controller.signal,
       headers: {
-        "Content-Type":   "application/json",
-        "x-api-key":      DIRECT_KEY,
-        "anthropic-version": ANTHROPIC_VER,
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": ANTHROPIC_VERSION,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 2048,
+        temperature: 0.7,
+        system: systemPrompt(body),
+        messages,
+      }),
     });
 
-    clearTimeout(timeout);
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || `Anthropic returned ${res.status}`);
 
-    return new Response(anthropicRes.body, {
-      status: anthropicRes.status,
-      headers: {
-        ...CORS_HEADERS,
-        "Content-Type":  anthropicRes.headers.get("Content-Type") ?? "text/event-stream",
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-        "X-Belicia-Route": "direct",
-      },
-    });
-
-  } catch (err) {
+    const data = JSON.parse(text);
+    return data.content?.map((part: { text?: string }) => part.text ?? "").join("").trim() || "I couldn't generate a response.";
+  } finally {
     clearTimeout(timeout);
-    const isTimeout = (err as Error).name === "AbortError";
-    return jsonError(
-      isTimeout ? "Anthropic request timed out" : `Anthropic error: ${(err as Error).message}`,
-      isTimeout ? 504 : 502
-    );
   }
 }
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  try {
+    const body = (await req.json()) as ChatBody;
+    const message = body.message?.trim();
+
+    if (!message) return json({ error: "message is required" }, 400);
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false } },
+    );
+
+    const userId = body.userId ?? "default";
+    const sessionId = body.sessionId ?? crypto.randomUUID();
+
+    const { data: previous } = await supabase
+      .from("belicia_memory")
+      .select("role, content")
+      .eq("user_id", userId)
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true })
+      .limit(80);
+
+    const response = await askAnthropic(body, previous ?? []);
+
+    await supabase.from("belicia_memory").insert([
+      {
+        user_id: userId,
+        session_id: sessionId,
+        role: "user",
+        content: message,
+        inquiry_mode: body.inquiryMode ?? null,
+        memory_type: body.archiveMode ? "archive" : "exchange",
+        pemf_coherence_at_time: body.pemfContext?.coherenceScore ?? null,
+      },
+      {
+        user_id: userId,
+        session_id: sessionId,
+        role: "assistant",
+        content: response,
+        inquiry_mode: body.inquiryMode ?? null,
+        memory_type: body.archiveMode ? "archive" : "exchange",
+        pemf_coherence_at_time: body.pemfContext?.coherenceScore ?? null,
+      },
+    ]);
+
+    return json({ response, sessionId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const status = error instanceof Error && error.name === "AbortError" ? 504 : 500;
+    return json({ error: message }, status);
+  }
+});
