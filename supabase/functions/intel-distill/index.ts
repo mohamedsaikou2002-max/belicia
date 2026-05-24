@@ -38,15 +38,83 @@ const MAX_INPUT_CHARS = 2_800_000;
 const ANTHROPIC_MAX_OUTPUT_TOKENS_PER_CALL = 64_000;
 const CONTINUATION_TAIL_CHARS = 24_000;
 
+function isAnthropicFallback(status: number, text: string): boolean {
+  if (status === 401 || status === 402 || status === 429) return true;
+  const t = text.toLowerCase();
+  return t.includes("credit balance") || t.includes("quota") || t.includes("billing");
+}
+
+async function callGeminiStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
+  const key = Deno.env.get("LOVABLE_API_KEY");
+  if (!key) {
+    controller.enqueue(enc.encode(`data: ERROR: LOVABLE_API_KEY not configured\n\n`));
+    return;
+  }
+  let currentMessage = userMessage;
+  let emittedTail = "";
+  while (true) {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-pro",
+        stream: true,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: currentMessage },
+        ],
+      }),
+    });
+    if (!r.ok || !r.body) {
+      const t = await r.text();
+      controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
+      return;
+    }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    let finishReason = "";
+    let emittedThisPass = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) !== -1) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        try {
+          const evt = JSON.parse(payload);
+          const delta = evt.choices?.[0]?.delta?.content;
+          if (delta) {
+            emittedThisPass += delta;
+            emittedTail = (emittedTail + delta).slice(-CONTINUATION_TAIL_CHARS);
+            controller.enqueue(enc.encode(`data: ${delta}\n\n`));
+          }
+          const fr = evt.choices?.[0]?.finish_reason;
+          if (fr) finishReason = fr;
+        } catch { /* ignore */ }
+      }
+    }
+    if (finishReason !== "length" || !emittedThisPass.trim()) break;
+    const originalRoom = Math.max(0, MAX_INPUT_CHARS - emittedTail.length - 8000);
+    currentMessage = `Continue the previous distillation exactly where it stopped. Do not restart, recap, shorten, or conclude early. Keep following the original instruction and source; preserve exhaustive detail until the work is actually complete.\n\nORIGINAL INSTRUCTION AND SOURCE${userMessage.length > originalRoom ? " (truncated only to fit the provider input window)" : ""}:\n${userMessage.slice(0, originalRoom)}\n\nTAIL OF YOUR PREVIOUS OUTPUT TO CONTINUE FROM:\n${emittedTail}`;
+  }
+}
+
 async function callAnthropicStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) {
-    controller.enqueue(enc.encode(`data: ERROR: ANTHROPIC_API_KEY not configured\n\n`));
-    return;
+    console.log("[intel-distill] No ANTHROPIC_API_KEY, falling back to Gemini");
+    return callGeminiStream(userMessage, controller, enc);
   }
 
   let currentMessage = userMessage;
   let emittedTail = "";
+  let firstAttempt = true;
   while (true) {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -61,9 +129,14 @@ async function callAnthropicStream(userMessage: string, controller: ReadableStre
     });
     if (!r.ok || !r.body) {
       const t = await r.text();
+      if (firstAttempt && isAnthropicFallback(r.status, t)) {
+        console.log("[intel-distill] Anthropic unavailable, falling back to Gemini:", r.status);
+        return callGeminiStream(userMessage, controller, enc);
+      }
       controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
       return;
     }
+    firstAttempt = false;
     const reader = r.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
