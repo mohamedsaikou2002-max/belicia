@@ -44,10 +44,59 @@ function isAnthropicFallback(status: number, text: string): boolean {
   return t.includes("credit balance") || t.includes("quota") || t.includes("billing");
 }
 
+async function callGeminiNativeStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
+  const key = Deno.env.get("GEMINI_API_KEY")!;
+  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-pro";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: "user", parts: [{ text: userMessage }] }],
+    }),
+  });
+  if (!r.ok || !r.body) {
+    const t = await r.text();
+    controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
+    return;
+  }
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf("\n")) !== -1) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload) continue;
+      try {
+        const evt = JSON.parse(payload);
+        const parts = evt.candidates?.[0]?.content?.parts ?? [];
+        for (const p of parts) {
+          if (p.text) controller.enqueue(enc.encode(`data: ${p.text}\n\n`));
+        }
+      } catch { /* ignore */ }
+    }
+  }
+}
+
 async function callGeminiStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
+  if (Deno.env.get("GEMINI_API_KEY")) {
+    try {
+      return await callGeminiNativeStream(userMessage, controller, enc);
+    } catch (err) {
+      console.error("User Gemini key failed, falling back to Lovable gateway:", err);
+    }
+  }
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) {
-    controller.enqueue(enc.encode(`data: ERROR: LOVABLE_API_KEY not configured\n\n`));
+    controller.enqueue(enc.encode(`data: ERROR: No Gemini key configured\n\n`));
     return;
   }
   let currentMessage = userMessage;
