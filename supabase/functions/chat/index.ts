@@ -227,14 +227,16 @@ async function askAnthropic(body: ChatBody, history: MemoryRow[]): Promise<strin
 }
 
 async function askWithFallback(body: ChatBody, history: MemoryRow[]): Promise<string> {
+  // Gemini-first (user's GEMINI_API_KEY native, then Lovable gateway). Anthropic only as last resort.
   try {
-    return await askAnthropic(body, history);
+    return await askGemini(body, history);
   } catch (err) {
-    if ((err as any)?.fallback) {
-      console.log("Anthropic unavailable — falling back to Gemini");
-      return await askGemini(body, history);
+    console.error("Gemini path failed, trying Anthropic as last resort:", (err as Error).message?.slice(0, 200));
+    try {
+      return await askAnthropic(body, history);
+    } catch {
+      throw err;
     }
-    throw err;
   }
 }
 
