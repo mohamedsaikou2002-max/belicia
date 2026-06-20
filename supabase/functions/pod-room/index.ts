@@ -1,30 +1,59 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
-const MODEL = "google/gemini-2.5-flash";
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
+const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
+const GEMINI_MODELS = [
+  Deno.env.get("GEMINI_MODEL"),
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-2.5-pro",
+].filter((m, i, a): m is string => !!m && a.indexOf(m) === i);
 
-async function ai(system: string, user: string, json = true): Promise<any> {
-  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+async function geminiNative(system: string, user: string, json: boolean, model: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_KEY)}`;
+  const r = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      ...(json ? { response_format: { type: "json_object" } } : {}),
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 4096, ...(json ? { responseMimeType: "application/json" } : {}) },
     }),
   });
-  if (!r.ok) throw new Error(`AI ${r.status}: ${await r.text()}`);
-  const j = await r.json();
-  const txt = j.choices?.[0]?.message?.content ?? "";
+  const text = await r.text();
+  if (!r.ok) throw new Error(`Gemini ${model} ${r.status}: ${text.slice(0, 200)}`);
+  const j = JSON.parse(text);
+  return (j.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text ?? "").join("");
+}
+
+async function ai(system: string, user: string, json = true): Promise<any> {
+  let txt = "";
+  let ok = false;
+  if (GEMINI_KEY) {
+    for (const model of GEMINI_MODELS) {
+      try { txt = await geminiNative(system, user, json, model); ok = true; break; }
+      catch (err) { console.error(`Gemini ${model} failed:`, (err as Error).message?.slice(0, 200)); }
+    }
+  }
+  if (!ok) {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${LOVABLE_API_KEY}` },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "system", content: system }, { role: "user", content: user }],
+        ...(json ? { response_format: { type: "json_object" } } : {}),
+      }),
+    });
+    if (!r.ok) throw new Error(`AI ${r.status}: ${await r.text()}`);
+    const j = await r.json();
+    txt = j.choices?.[0]?.message?.content ?? "";
+  }
   if (!json) return txt;
   try { return JSON.parse(txt); } catch { return { _raw: txt }; }
 }
+
 
 async function worldState() {
   const sys = "You are a real-time geopolitical pulse analyst. Output strict JSON.";

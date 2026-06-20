@@ -102,18 +102,41 @@ async function breachCheck(email: string) {
 }
 
 async function synthesize(graph: unknown, subject: string) {
+  const sys = "You are an OSINT behavioral profiler. Read the enriched graph and produce a structured report covering: identity surface, platform footprint, geographic signals (from EXIF GPS), routine inference (post timestamps), interests, risk/breach exposure, and 3 actionable next-step intel pivots. Keep it concise, factual, no speculation beyond evidence.";
+  const userMsg = `Subject: ${subject}\nGraph:\n${JSON.stringify(graph).slice(0, 30000)}`;
+
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  const models = [Deno.env.get("GEMINI_MODEL"), "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-pro"]
+    .filter((m, i, a): m is string => !!m && a.indexOf(m) === i);
+
+  if (geminiKey) {
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`;
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: sys }] },
+            contents: [{ role: "user", parts: [{ text: userMsg }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
+          }),
+        });
+        const text = await r.text();
+        if (!r.ok) { console.error(`Gemini ${model}:`, r.status, text.slice(0, 200)); continue; }
+        const j = JSON.parse(text);
+        const out = (j.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text ?? "").join("");
+        if (out) return out;
+      } catch (err) { console.error(`Gemini ${model} threw:`, (err as Error).message?.slice(0, 200)); }
+    }
+  }
+
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Authorization": `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: "You are an OSINT behavioral profiler. Read the enriched graph and produce a structured report covering: identity surface, platform footprint, geographic signals (from EXIF GPS), routine inference (post timestamps), interests, risk/breach exposure, and 3 actionable next-step intel pivots. Keep it concise, factual, no speculation beyond evidence." },
-        { role: "user", content: `Subject: ${subject}\nGraph:\n${JSON.stringify(graph).slice(0, 30000)}` },
-      ],
+      messages: [{ role: "system", content: sys }, { role: "user", content: userMsg }],
     }),
   });
   if (!r.ok) return `AI synthesis failed: ${r.status} ${await r.text()}`;
