@@ -44,9 +44,8 @@ function isAnthropicFallback(status: number, text: string): boolean {
   return t.includes("credit balance") || t.includes("quota") || t.includes("billing");
 }
 
-async function callGeminiNativeStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
+async function callGeminiNativeStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder, model: string): Promise<boolean> {
   const key = Deno.env.get("GEMINI_API_KEY")!;
-  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-pro";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
   const r = await fetch(url, {
     method: "POST",
@@ -58,12 +57,13 @@ async function callGeminiNativeStream(userMessage: string, controller: ReadableS
   });
   if (!r.ok || !r.body) {
     const t = await r.text();
-    controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
-    return;
+    console.error(`Gemini ${model} stream failed:`, r.status, t.slice(0, 200));
+    return false;
   }
   const reader = r.body.getReader();
   const dec = new TextDecoder();
   let buf = "";
+  let anyText = false;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -79,20 +79,32 @@ async function callGeminiNativeStream(userMessage: string, controller: ReadableS
         const evt = JSON.parse(payload);
         const parts = evt.candidates?.[0]?.content?.parts ?? [];
         for (const p of parts) {
-          if (p.text) controller.enqueue(enc.encode(`data: ${p.text}\n\n`));
+          if (p.text) { controller.enqueue(enc.encode(`data: ${p.text}\n\n`)); anyText = true; }
         }
       } catch { /* ignore */ }
     }
   }
+  return anyText;
 }
 
 async function callGeminiStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
   if (Deno.env.get("GEMINI_API_KEY")) {
-    try {
-      return await callGeminiNativeStream(userMessage, controller, enc);
-    } catch (err) {
-      console.error("User Gemini key failed, falling back to Lovable gateway:", err);
+    const models = [
+      Deno.env.get("GEMINI_MODEL"),
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-2.0-flash",
+      "gemini-2.5-pro",
+    ].filter((m, i, a): m is string => !!m && a.indexOf(m) === i);
+    for (const model of models) {
+      try {
+        const ok = await callGeminiNativeStream(userMessage, controller, enc, model);
+        if (ok) return;
+      } catch (err) {
+        console.error(`User Gemini ${model} threw:`, (err as Error).message?.slice(0, 200));
+      }
     }
+    console.error("All user Gemini models exhausted; trying Lovable gateway");
   }
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) {
