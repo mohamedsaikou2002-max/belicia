@@ -246,7 +246,7 @@ function streamMany(messages: { header?: string; user: string }[]): Response {
         for (let i = 0; i < messages.length; i++) {
           const m = messages[i];
           if (m.header) controller.enqueue(enc.encode(`data: ${m.header}\n\n`));
-          await callAnthropicStream(m.user, controller, enc);
+          await callGeminiStream(m.user, controller, enc);
         }
         controller.enqueue(enc.encode("data: [DONE]\n\n"));
       } catch (e) {
