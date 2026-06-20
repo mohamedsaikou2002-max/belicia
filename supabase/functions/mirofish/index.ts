@@ -594,7 +594,7 @@ function json(data: any, status = 200) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (!ANTHROPIC_KEY) return json({ error: "ANTHROPIC_API_KEY missing" }, 500);
+  if (!GEMINI_KEY && !LOVABLE_KEY && !ANTHROPIC_KEY) return json({ error: "No AI provider configured" }, 500);
 
   const url = new URL(req.url);
   const action = url.searchParams.get("action") ?? "state";
