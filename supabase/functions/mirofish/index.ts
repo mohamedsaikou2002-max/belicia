@@ -9,7 +9,16 @@ const corsHeaders = {
 };
 
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
+const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
 const MODEL = "claude-sonnet-4-5-20250929";
+const GEMINI_MODELS = [
+  Deno.env.get("GEMINI_MODEL"),
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-2.5-pro",
+].filter((m, i, a): m is string => !!m && a.indexOf(m) === i) as string[];
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
