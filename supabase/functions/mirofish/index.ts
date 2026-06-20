@@ -196,20 +196,61 @@ async function saveState(id: string | null, state: SimState): Promise<string> {
   return data!.id;
 }
 
+async function geminiCall(prompt: string, system: string, max_tokens: number, model: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_KEY)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: max_tokens },
+    }),
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`Gemini ${model} ${r.status}: ${text.slice(0, 200)}`);
+  const j = JSON.parse(text);
+  return (j.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text ?? "").join("");
+}
+
 async function claude(prompt: string, system = "", max_tokens = 1000): Promise<string> {
-  const body: any = {
-    model: MODEL,
-    max_tokens,
-    messages: [{ role: "user", content: prompt }],
-  };
+  // Gemini-first
+  if (GEMINI_KEY) {
+    for (const model of GEMINI_MODELS) {
+      try { return await geminiCall(prompt, system, max_tokens, model); }
+      catch (err) { console.error(`Gemini ${model} failed:`, (err as Error).message?.slice(0, 200)); }
+    }
+  }
+  // Lovable gateway fallback
+  if (LOVABLE_KEY) {
+    try {
+      const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_KEY}` },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          max_tokens,
+          messages: [
+            ...(system ? [{ role: "system", content: system }] : []),
+            { role: "user", content: prompt },
+          ],
+        }),
+      });
+      const t = await r.text();
+      if (r.ok) {
+        const j = JSON.parse(t);
+        return j.choices?.[0]?.message?.content ?? "";
+      }
+      console.error("Lovable gateway failed:", r.status, t.slice(0, 200));
+    } catch (err) { console.error("Lovable gateway threw:", (err as Error).message?.slice(0, 200)); }
+  }
+  // Anthropic last resort
+  if (!ANTHROPIC_KEY) throw new Error("No AI provider available");
+  const body: any = { model: MODEL, max_tokens, messages: [{ role: "user", content: prompt }] };
   if (system) body.system = system;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_KEY,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
+    headers: { "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`Anthropic ${r.status}: ${await r.text()}`);
