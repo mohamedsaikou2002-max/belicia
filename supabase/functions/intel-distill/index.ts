@@ -44,7 +44,7 @@ function isAnthropicFallback(status: number, text: string): boolean {
   return t.includes("credit balance") || t.includes("quota") || t.includes("billing");
 }
 
-async function callGeminiNativeStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder, model: string): Promise<boolean> {
+async function callGeminiNativeStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder, model: string): Promise<{ ok: boolean; err?: string }> {
   const key = Deno.env.get("GEMINI_API_KEY")!;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
   const r = await fetch(url, {
@@ -57,13 +57,14 @@ async function callGeminiNativeStream(userMessage: string, controller: ReadableS
   });
   if (!r.ok || !r.body) {
     const t = await r.text();
-    console.error(`Gemini ${model} stream failed:`, r.status, t.slice(0, 200));
-    return false;
+    console.error(`Gemini ${model} stream failed:`, r.status, t.slice(0, 500));
+    return { ok: false, err: `${model} ${r.status}: ${t.slice(0, 300)}` };
   }
   const reader = r.body.getReader();
   const dec = new TextDecoder();
   let buf = "";
   let anyText = false;
+  let blockReason = "";
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -81,90 +82,42 @@ async function callGeminiNativeStream(userMessage: string, controller: ReadableS
         for (const p of parts) {
           if (p.text) { controller.enqueue(enc.encode(`data: ${p.text}\n\n`)); anyText = true; }
         }
+        const fr = evt.candidates?.[0]?.finishReason;
+        if (fr && fr !== "STOP") blockReason = fr;
+        if (evt.promptFeedback?.blockReason) blockReason = evt.promptFeedback.blockReason;
       } catch { /* ignore */ }
     }
   }
-  return anyText;
+  return { ok: anyText, err: anyText ? undefined : (blockReason ? `${model} blocked: ${blockReason}` : `${model}: empty response`) };
 }
 
 async function callGeminiStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
-  if (Deno.env.get("GEMINI_API_KEY")) {
-    const models = [
-      Deno.env.get("GEMINI_MODEL"),
-      "gemini-2.5-flash",
-      "gemini-2.5-flash-lite",
-      "gemini-2.0-flash",
-      "gemini-2.5-pro",
-    ].filter((m, i, a): m is string => !!m && a.indexOf(m) === i);
-    for (const model of models) {
-      try {
-        const ok = await callGeminiNativeStream(userMessage, controller, enc, model);
-        if (ok) return;
-      } catch (err) {
-        console.error(`User Gemini ${model} threw:`, (err as Error).message?.slice(0, 200));
-      }
-    }
-    console.error("All user Gemini models exhausted; trying Lovable gateway");
-  }
-  const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) {
-    controller.enqueue(enc.encode(`data: ERROR: No Gemini key configured\n\n`));
+  if (!Deno.env.get("GEMINI_API_KEY")) {
+    controller.enqueue(enc.encode(`data: ERROR: GEMINI_API_KEY not configured\n\n`));
     return;
   }
-  let currentMessage = userMessage;
-  let emittedTail = "";
-  while (true) {
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        stream: true,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: currentMessage },
-        ],
-      }),
-    });
-    if (!r.ok || !r.body) {
-      const t = await r.text();
-      controller.enqueue(enc.encode(`data: ERROR: ${t}\n\n`));
-      return;
+  const models = [
+    Deno.env.get("GEMINI_MODEL"),
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.5-pro",
+  ].filter((m, i, a): m is string => !!m && a.indexOf(m) === i);
+  const errs: string[] = [];
+  for (const model of models) {
+    try {
+      const res = await callGeminiNativeStream(userMessage, controller, enc, model);
+      if (res.ok) return;
+      if (res.err) errs.push(res.err);
+    } catch (err) {
+      const m = (err as Error).message?.slice(0, 200) ?? String(err);
+      console.error(`User Gemini ${model} threw:`, m);
+      errs.push(`${model}: ${m}`);
     }
-    const reader = r.body.getReader();
-    const dec = new TextDecoder();
-    let buf = "";
-    let finishReason = "";
-    let emittedThisPass = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      let nl;
-      while ((nl = buf.indexOf("\n")) !== -1) {
-        const line = buf.slice(0, nl).trim();
-        buf = buf.slice(nl + 1);
-        if (!line.startsWith("data:")) continue;
-        const payload = line.slice(5).trim();
-        if (!payload || payload === "[DONE]") continue;
-        try {
-          const evt = JSON.parse(payload);
-          const delta = evt.choices?.[0]?.delta?.content;
-          if (delta) {
-            emittedThisPass += delta;
-            emittedTail = (emittedTail + delta).slice(-CONTINUATION_TAIL_CHARS);
-            controller.enqueue(enc.encode(`data: ${delta}\n\n`));
-          }
-          const fr = evt.choices?.[0]?.finish_reason;
-          if (fr) finishReason = fr;
-        } catch { /* ignore */ }
-      }
-    }
-    if (finishReason !== "length" || !emittedThisPass.trim()) break;
-    const originalRoom = Math.max(0, MAX_INPUT_CHARS - emittedTail.length - 8000);
-    currentMessage = `Continue the previous distillation exactly where it stopped. Do not restart, recap, shorten, or conclude early. Keep following the original instruction and source; preserve exhaustive detail until the work is actually complete.\n\nORIGINAL INSTRUCTION AND SOURCE${userMessage.length > originalRoom ? " (truncated only to fit the provider input window)" : ""}:\n${userMessage.slice(0, originalRoom)}\n\nTAIL OF YOUR PREVIOUS OUTPUT TO CONTINUE FROM:\n${emittedTail}`;
   }
+  controller.enqueue(enc.encode(`data: ERROR: All Gemini models failed. ${errs.join(" | ")}\n\n`));
 }
+
 
 async function callAnthropicStream(userMessage: string, controller: ReadableStreamDefaultController, enc: TextEncoder): Promise<void> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
