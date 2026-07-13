@@ -88,29 +88,64 @@ Deno.serve(async (req) => {
       const maxChars = Number(body.max_chars || 500000);
       if (!id) return new Response(JSON.stringify({ error: "identifier required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+      let files: any[] = [];
+      let pdfFile: string | undefined;
       if (!filename) {
         const meta = await (await fetch(`${ARCHIVE}/metadata/${id}`)).json();
-        const files = meta.files || [];
-        for (const ext of ["_djvu.txt", "_full_text.txt", ".txt", "_djvu.xml"]) {
+        files = meta.files || [];
+        for (const ext of ["_djvu.txt", "_hocr_searchtext.txt", "_full_text.txt", ".txt", "_djvu.txt.gz", "_djvu.xml"]) {
           const m = files.find((f: any) => (f.name || "").endsWith(ext));
           if (m) { filename = m.name; break; }
         }
-        if (!filename) return new Response(JSON.stringify({ error: "no text file found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        if (!filename) {
+          // Try convention-based fallback (metadata sometimes hides derivatives)
+          const guesses = [`${id}_djvu.txt`, `${id}_hocr_searchtext.txt`];
+          for (const g of guesses) {
+            const h = await fetch(`${ARCHIVE}/download/${id}/${g}`, { method: "HEAD" });
+            if (h.ok) { filename = g; break; }
+          }
+        }
+        if (!filename) {
+          const pdf = files.find((f: any) => (f.name || "").toLowerCase().endsWith(".pdf"));
+          if (pdf) pdfFile = pdf.name;
+        }
+        if (!filename && !pdfFile) return new Response(JSON.stringify({ error: "no text or pdf file found for this item" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const r = await fetch(`${ARCHIVE}/download/${id}/${filename}`);
-      const reader = r.body?.getReader();
-      if (!reader) return new Response(JSON.stringify({ error: "no body" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      const dec = new TextDecoder();
       let raw = "";
-      while (raw.length < maxChars) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        raw += dec.decode(value, { stream: true });
+      if (filename) {
+        const r = await fetch(`${ARCHIVE}/download/${id}/${filename}`);
+        if (!r.ok || !r.body) return new Response(JSON.stringify({ error: `download failed (${r.status})` }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        let stream: ReadableStream<Uint8Array> = r.body;
+        if (filename.endsWith(".gz")) {
+          stream = stream.pipeThrough(new DecompressionStream("gzip"));
+        }
+        const reader = stream.getReader();
+        const dec = new TextDecoder();
+        while (raw.length < maxChars) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          raw += dec.decode(value, { stream: true });
+        }
+        try { reader.cancel(); } catch {}
+        if (filename.endsWith(".xml")) raw = raw.replace(/<[^>]+>/g, " ");
+      } else if (pdfFile) {
+        const r = await fetch(`${ARCHIVE}/download/${id}/${pdfFile}`);
+        if (!r.ok) return new Response(JSON.stringify({ error: `pdf download failed (${r.status})` }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        const buf = new Uint8Array(await r.arrayBuffer());
+        try {
+          const pdfParse = (await import("npm:pdf-parse@1.1.1/lib/pdf-parse.js")).default;
+          const { Buffer } = await import("node:buffer");
+          const parsed = await pdfParse(Buffer.from(buf));
+          raw = parsed.text || "";
+        } catch (e) {
+          return new Response(JSON.stringify({ error: `pdf parse failed: ${e instanceof Error ? e.message : String(e)}` }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        filename = pdfFile;
       }
-      try { reader.cancel(); } catch {}
-      if (filename.endsWith(".xml")) raw = raw.replace(/<[^>]+>/g, " ");
+
       raw = raw.replace(/\s+/g, " ").trim();
+      if (!raw) return new Response(JSON.stringify({ error: "extracted text was empty (likely scanned PDF without OCR)" }), { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       const chapters = splitChapters(raw);
       return new Response(JSON.stringify({
         identifier: id, filename,
