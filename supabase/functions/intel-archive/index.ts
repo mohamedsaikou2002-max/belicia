@@ -114,7 +114,16 @@ Deno.serve(async (req) => {
 
       let raw = "";
       if (filename) {
-        const r = await fetch(`${ARCHIVE}/download/${id}/${filename}`);
+        let r = await fetch(`${ARCHIVE}/download/${id}/${filename}`);
+        if (r.status === 401 || r.status === 403) {
+          // try other text files that may not be restricted
+          const alts = files.map((f: any) => f.name as string).filter((n) => n && n !== filename && /(\.txt|\.txt\.gz|_djvu\.xml)$/.test(n));
+          for (const a of alts) {
+            const r2 = await fetch(`${ARCHIVE}/download/${id}/${a}`);
+            if (r2.ok && r2.body) { r = r2; filename = a; break; }
+          }
+        }
+        if (r.status === 401 || r.status === 403) return new Response(JSON.stringify({ error: "restricted: this item is lending-only on Archive.org" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         if (!r.ok || !r.body) return new Response(JSON.stringify({ error: `download failed (${r.status})` }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         let stream: ReadableStream<Uint8Array> = r.body;
         if (filename.endsWith(".gz")) {

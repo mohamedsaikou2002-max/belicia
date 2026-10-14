@@ -135,6 +135,11 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
     try {
       const data = await archiveCall("fetch-text", { identifier: doc.identifier });
       setChapters(data.chapters || []);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setOutput(/401|403|restricted/i.test(msg)
+        ? "[ERROR] This book is lending-restricted on Archive.org and can't be downloaded. Pick a different result."
+        : "[ERROR] " + msg);
     } finally { setLoadingChapters(false); }
   };
 
