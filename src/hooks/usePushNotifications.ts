@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Capacitor } from "@capacitor/core";
 
 const isPreviewHost =
   typeof window !== "undefined" &&
@@ -15,7 +16,9 @@ export function usePushNotifications(userId = "default") {
   const [isSubscribed, setIsSubscribed] = useState(false);
 
   useEffect(() => {
-    if (isPreviewHost || isInIframe) return;
+    // Browser Push and service workers are not Android native push.
+    // Never register the web service worker in the packaged Capacitor app.
+    if (Capacitor.isNativePlatform() || isPreviewHost || isInIframe) return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     setIsSupported(true);
     navigator.serviceWorker.register("/sw.js").then(async (reg) => {
