@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, HashRouter, Route, Routes } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,12 +15,16 @@ import GameTheoryRoom from "./pages/GameTheoryRoom.tsx";
 
 const queryClient = new QueryClient();
 
+// Android bundles are served at https://localhost. Hash routes survive native
+// WebView navigation, while the existing web deployment retains clean URLs.
+const Router = Capacitor.isNativePlatform() ? HashRouter : BrowserRouter;
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <Router>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/briefs" element={<Briefs />} />
@@ -30,7 +35,7 @@ const App = () => (
           <Route path="/game-theory" element={<GameTheoryRoom />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </BrowserRouter>
+      </Router>
     </TooltipProvider>
   </QueryClientProvider>
 );
