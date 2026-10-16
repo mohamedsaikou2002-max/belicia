@@ -37,8 +37,12 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      # ubuntu-latest already includes command-line Android SDK tools.
-      # Avoid the setup-android action, which requests the removed "tools" package.
+      # v4 no longer installs the deprecated Android SDK "tools" package.
+      - name: Android SDK command-line tools
+        uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools"
+
       - name: Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
