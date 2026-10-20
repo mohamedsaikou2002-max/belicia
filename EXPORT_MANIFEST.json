@@ -1,0 +1,140 @@
+{
+  "source_repository": "mohamedsaikou2002-max/belicia",
+  "source_branch": "main",
+  "source_commit": "c8928f5d4a4db5b04dc1c65a8332f288dd95ff31",
+  "created": "2026-10-20",
+  "backend_file_count": 26,
+  "backend_bytes": 324304,
+  "files": [
+    {
+      "path": "scripts/.env.example",
+      "git_blob_sha": "ebe3b59be155903b0178deddf3744bea50ea83f4",
+      "bytes": 411
+    },
+    {
+      "path": "scripts/README.md",
+      "git_blob_sha": "0f01806d30aac13d1bbd86eae3c86780e00c56ac",
+      "bytes": 1219
+    },
+    {
+      "path": "scripts/home_node_server.py",
+      "git_blob_sha": "cf3cc8c90386a92a4482fa9c3bac0d48831861c6",
+      "bytes": 4047
+    },
+    {
+      "path": "scripts/morning_brief.py",
+      "git_blob_sha": "c88db282d4faa2377ad3a2d2d05e295c2b44e28d",
+      "bytes": 3206
+    },
+    {
+      "path": "scripts/pemf_bridge.py",
+      "git_blob_sha": "1e9f422b57b01f2a567c059b431b1de0f53ab309",
+      "bytes": 3787
+    },
+    {
+      "path": "src/integrations/supabase/types.ts",
+      "git_blob_sha": "bac499d58950681da6ef98ad64a82226d7926e82",
+      "bytes": 14517
+    },
+    {
+      "path": "src/lib/mass_psych_corpus.js",
+      "git_blob_sha": "fbb7ecb216539c2c6fcb92b6b1441dd3d1fe0b99",
+      "bytes": 39187
+    },
+    {
+      "path": "supabase/config.toml",
+      "git_blob_sha": "403847788b001868a8d0478afd7c8837c4b60160",
+      "bytes": 499
+    },
+    {
+      "path": "supabase/functions/chat/corpus.ts",
+      "git_blob_sha": "f603c77d86aeba9f87c1d7dfb10cb4de9cdd54b4",
+      "bytes": 23581
+    },
+    {
+      "path": "supabase/functions/chat/expert_corpus.ts",
+      "git_blob_sha": "9459614245819582ed994b6235908494e54afddc",
+      "bytes": 96942
+    },
+    {
+      "path": "supabase/functions/chat/index.ts",
+      "git_blob_sha": "f4eaa314a6eed50ac52b5046f0a8525fe5ce628c",
+      "bytes": 10499
+    },
+    {
+      "path": "supabase/functions/daily-brief/index.ts",
+      "git_blob_sha": "65612edab025730a6314d24734f7da8e80a21de5",
+      "bytes": 3911
+    },
+    {
+      "path": "supabase/functions/eagle-eye/index.ts",
+      "git_blob_sha": "353aa9897c181c2d850923d3ad0e9ec64f7da861",
+      "bytes": 12235
+    },
+    {
+      "path": "supabase/functions/game-theory/index.ts",
+      "git_blob_sha": "15109f72a2205e2d529300a4ab14c294a7c5d834",
+      "bytes": 5965
+    },
+    {
+      "path": "supabase/functions/home-bridge/index.ts",
+      "git_blob_sha": "414d7829419e4f68db0267043bdb04b8e7de4659",
+      "bytes": 3266
+    },
+    {
+      "path": "supabase/functions/intel-archive/index.ts",
+      "git_blob_sha": "2b2729404475429f0828c3090c050e7455fa935f",
+      "bytes": 9362
+    },
+    {
+      "path": "supabase/functions/intel-distill/index.ts",
+      "git_blob_sha": "37559f9ff6fb97236eb417672c5725f659809d5a",
+      "bytes": 17768
+    },
+    {
+      "path": "supabase/functions/memory/index.ts",
+      "git_blob_sha": "a35515211ddae1e46a16946fa6f7f2c851a3afb7",
+      "bytes": 4110
+    },
+    {
+      "path": "supabase/functions/mirofish/index.ts",
+      "git_blob_sha": "9522a0619777ba0948b56fa074d224bf42ac5379",
+      "bytes": 50977
+    },
+    {
+      "path": "supabase/functions/pemf-ingest/index.ts",
+      "git_blob_sha": "112af1cf3d0991cf5cc8c4602fb3195bf92d2fe6",
+      "bytes": 3352
+    },
+    {
+      "path": "supabase/functions/pod-room/index.ts",
+      "git_blob_sha": "e014c7ff4db68750cb08abdcd9e71d83db033ae1",
+      "bytes": 5551
+    },
+    {
+      "path": "supabase/functions/tts/index.ts",
+      "git_blob_sha": "7bb5d06cc35571e2d75a9c9c58d65af761b42db8",
+      "bytes": 1737
+    },
+    {
+      "path": "supabase/migrations/20260429192242_f3fe5b7b-9e63-47ff-88a5-796be80c9bd2.sql",
+      "git_blob_sha": "bd3323983509f31414d111d744e43dff48ffabaa",
+      "bytes": 1521
+    },
+    {
+      "path": "supabase/migrations/20260507004905_6b1ce2bc-c5e9-435d-a32e-c87863919eda.sql",
+      "git_blob_sha": "3a7b422aadce878dc645d985d50e61d96a8e895a",
+      "bytes": 4578
+    },
+    {
+      "path": "supabase/migrations/20260510222611_b60b781c-242d-48eb-88ee-101a1f6e1199.sql",
+      "git_blob_sha": "9765bca63c4d5b205a62a187c6c147d0dc65cd9f",
+      "bytes": 794
+    },
+    {
+      "path": "supabase/migrations/20260513034849_3ef017eb-c6c1-4979-b22a-9ed4d931c950.sql",
+      "git_blob_sha": "9577a23c2b506f16f995fe43c30cbb0a49c0b526",
+      "bytes": 1282
+    }
+  ]
+}
