@@ -1,4 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const LINKS = [
   { to: "/", label: "ORB" },
@@ -12,8 +13,11 @@ const LINKS = [
 
 export const TopNav = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const logout = async () => { try { await signOut(); navigate("/auth", { replace: true }); } catch (err) { console.error("Sign-out failed", err); } };
   return (
-    <nav className="flex gap-4 text-[11px] tracking-[0.3em] font-[Tektur]">
+    <nav className="flex flex-wrap items-center gap-4 text-[11px] tracking-[0.2em] font-[Tektur]">
       {LINKS.map((l) => {
         const active = pathname === l.to;
         return (
@@ -26,6 +30,8 @@ export const TopNav = () => {
           </Link>
         );
       })}
+      <span className="max-w-36 truncate text-white/40" title={user?.email || ""}>{user?.email}</span>
+      <button type="button" onClick={logout} className="text-white/50 hover:text-white/90" aria-label="Sign out">SIGN OUT</button>
     </nav>
   );
 };
