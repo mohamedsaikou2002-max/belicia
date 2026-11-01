@@ -8,12 +8,13 @@ export type PemfState = {
   updatedAt: string;
 } | null;
 
-export function usePemfState(userId = "default") {
+export function usePemfState(userId?: string) {
   const [pemf, setPemf] = useState<PemfState>(null);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    if (!userId) { setPemf(null); setConnected(false); return; }
     const fetchState = async () => {
       const { data } = await supabase
         .from("belicia_profile")
