@@ -1,3 +1,4 @@
+import { verifiedUserId, authRequired } from "../_shared/auth.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
@@ -121,6 +122,8 @@ Write a prediction report:
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const accountId = await verifiedUserId(req);
+  if (!accountId) return authRequired(corsHeaders);
   try {
     const url = new URL(req.url);
     const path = url.pathname.replace(/^.*\/pod-room/, "") || "/";
