@@ -299,6 +299,48 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          inquiry_mode: string
+          preferences: Json
+          response_depth: string
+          spiritual_preferences: Json
+          strategic_context: string | null
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          inquiry_mode?: string
+          preferences?: Json
+          response_depth?: string
+          spiritual_preferences?: Json
+          strategic_context?: string | null
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          inquiry_mode?: string
+          preferences?: Json
+          response_depth?: string
+          spiritual_preferences?: Json
+          strategic_context?: string | null
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scheduled_briefs: {
         Row: {
           brief_type: string | null
