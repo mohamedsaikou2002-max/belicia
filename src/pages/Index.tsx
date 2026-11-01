@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Mic, MicOff, Send, Trash2, Volume2, VolumeX, Archive, Plus, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { BeliciaIntelCompressor } from "@/components/IntelCompressor/BeliciaIntelCompressor";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Msg = { role: "user" | "assistant"; content: string; created_at?: string };
 
@@ -30,56 +31,65 @@ const Index = () => {
   const [useArchive, setUseArchive] = useState(false);
   const [mode, setMode] = useState<"wisdom" | "tafsir" | "cosmology" | "ethics" | "conquest">("wisdom");
   const [intensity, setIntensity] = useState(0);
-  const { pemf, connected: pemfConnected } = usePemfState("default");
+  const { user } = useAuth();
+  const uid = user?.id;
+  const sessionKey = `belicia_session_id:${uid ?? "signed-out"}`;
+  const { pemf, connected: pemfConnected } = usePemfState(uid);
   const [showCompressor, setShowCompressor] = useState(false);
   const [sessionId, setSessionId] = useState<string>(() => {
-    const saved = localStorage.getItem("belicia_session_id");
+    const saved = localStorage.getItem(sessionKey);
     if (saved) return saved;
     const fresh = crypto.randomUUID();
-    localStorage.setItem("belicia_session_id", fresh);
+    localStorage.setItem(sessionKey, fresh);
     return fresh;
   });
   const [sessions, setSessions] = useState<Array<{ session_id: string; preview: string; last: string }>>([]);
   const [showSessions, setShowSessions] = useState(false);
 
-  const SUPA_URL = "https://focrrskgrxdkiddajxuq.supabase.co";
-  const SUPA_HEADERS = {
-    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+  const SUPA_URL = import.meta.env.VITE_SUPABASE_URL;
+  const authenticatedHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Authentication required");
+    return {
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+      Authorization: `Bearer ${session.access_token}`,
+    };
   };
 
   const loadSessions = useCallback(async () => {
-    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=sessions`, { headers: SUPA_HEADERS });
+    if (!uid) return;
+    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=sessions`, { headers: await authenticatedHeaders() });
     if (r.ok) {
       const j = await r.json();
       setSessions(j.sessions ?? []);
     }
-  }, []);
+  }, [uid]);
 
   const loadSessionMessages = useCallback(async (sid: string) => {
-    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=recent&session_id=${sid}`, { headers: SUPA_HEADERS });
+    if (!uid) return;
+    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=recent&session_id=${encodeURIComponent(sid)}`, { headers: await authenticatedHeaders() });
     if (r.ok) {
       const j = await r.json();
       setMessages(j.messages ?? []);
     }
-  }, []);
+  }, [uid]);
 
   const newChat = useCallback(() => {
     const fresh = crypto.randomUUID();
-    localStorage.setItem("belicia_session_id", fresh);
+    localStorage.setItem(sessionKey, fresh);
     setSessionId(fresh);
     setMessages([]);
     setShowSessions(false);
     toast.success("New chat started");
     loadSessions();
-  }, [loadSessions]);
+  }, [loadSessions, sessionKey]);
 
   const switchSession = useCallback((sid: string) => {
-    localStorage.setItem("belicia_session_id", sid);
+    localStorage.setItem(sessionKey, sid);
     setSessionId(sid);
     loadSessionMessages(sid);
     setShowSessions(false);
-  }, [loadSessionMessages]);
+  }, [loadSessionMessages, sessionKey]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -113,6 +123,17 @@ const Index = () => {
     return true;
   }, []);
 
+  // A different account must never inherit a previous account's active session.
+  useEffect(() => {
+    if (!uid) return;
+    const saved = localStorage.getItem(sessionKey);
+    const next = saved ?? crypto.randomUUID();
+    if (!saved) localStorage.setItem(sessionKey, next);
+    setSessionId(next);
+    setMessages([]);
+    setSessions([]);
+  }, [uid, sessionKey]);
+
   // load history for current session
   useEffect(() => {
     loadSessionMessages(sessionId);
@@ -128,13 +149,12 @@ const Index = () => {
     try {
       setSpeaking(true);
       const r = await fetch(
-        `https://focrrskgrxdkiddajxuq.supabase.co/functions/v1/tts`,
+        `${SUPA_URL}/functions/v1/tts`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            ...await authenticatedHeaders(),
           },
           body: JSON.stringify({ text }),
         },
@@ -172,7 +192,6 @@ const Index = () => {
       const { data, error } = await supabase.functions.invoke("chat", {
         body: {
           message,
-          userId: "default",
           sessionId,
           archiveMode: useArchive,
           inquiryMode: mode,
@@ -230,18 +249,18 @@ const Index = () => {
 
   const clearMemory = async () => {
     if (!confirm("Wipe all of Belicia's memory?")) return;
-    const url = `https://focrrskgrxdkiddajxuq.supabase.co/functions/v1/memory?action=clear`;
+    const url = `${SUPA_URL}/functions/v1/memory?action=clear`;
     await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        ...await authenticatedHeaders(),
       },
-      body: JSON.stringify({ user_id: "default" }),
+      body: JSON.stringify({}),
     });
     setMessages([]);
-    toast.success("Memory cleared");
+    setSessions([]);
+    toast.success("Memory cleared for this account");
   };
 
   const stopSpeaking = () => {
