@@ -1,3 +1,4 @@
+import { verifiedUserId, authRequired } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -7,6 +8,8 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const accountId = await verifiedUserId(req);
+  if (!accountId) return authRequired(corsHeaders);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -16,7 +19,7 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const action = url.searchParams.get("action") ?? "recent";
-    const user_id = url.searchParams.get("user_id") ?? "default";
+    const user_id = accountId;
 
     if (req.method === "GET") {
       if (action === "recent") {
@@ -73,7 +76,7 @@ Deno.serve(async (req) => {
     if (req.method === "POST") {
       const body = await req.json();
       if (action === "clear") {
-        await supabase.from("belicia_memory").delete().eq("user_id", body.user_id ?? user_id);
+        await supabase.from("belicia_memory").delete().eq("user_id", user_id);
         return new Response(JSON.stringify({ ok: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
