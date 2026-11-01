@@ -31,7 +31,7 @@ const HomePage = () => {
     setBusy(action);
     try {
       const { data, error } = await supabase.functions.invoke("home-bridge", {
-        body: { userId: "default", command: { type: "scene", action, params: {} } },
+        body: { command: { type: "scene", action, params: {} } },
       });
       if (error) throw error;
       toast.success(`${action} fired (${(data as any)?.executed?.length || 0} targets)`);
