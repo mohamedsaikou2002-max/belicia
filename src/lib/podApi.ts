@@ -6,12 +6,14 @@ const FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pod-room`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 async function call(path: string, body?: any) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Sign in to run simulations");
   const r = await fetch(`${FN_URL}${path}`, {
     method: body ? "POST" : "GET",
     headers: {
       "Content-Type": "application/json",
       apikey: ANON,
-      Authorization: `Bearer ${ANON}`,
+      Authorization: `Bearer ${session.access_token}`,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
