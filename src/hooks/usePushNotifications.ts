@@ -10,7 +10,7 @@ const isInIframe = (() => {
   try { return window.self !== window.top; } catch { return true; }
 })();
 
-export function usePushNotifications(userId = "default") {
+export function usePushNotifications(userId?: string) {
   const [isSupported, setIsSupported] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
 
@@ -25,7 +25,7 @@ export function usePushNotifications(userId = "default") {
   }, []);
 
   const subscribe = async () => {
-    if (!isSupported) return;
+    if (!isSupported || !userId) return;
     const perm = await Notification.requestPermission();
     if (perm !== "granted") return;
     const reg = await navigator.serviceWorker.ready;
@@ -41,6 +41,7 @@ export function usePushNotifications(userId = "default") {
   };
 
   const unsubscribe = async () => {
+    if (!userId) return;
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     await sub?.unsubscribe();
