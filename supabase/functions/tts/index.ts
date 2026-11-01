@@ -1,3 +1,4 @@
+import { verifiedUserId, authRequired } from "../_shared/auth.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -5,6 +6,8 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const accountId = await verifiedUserId(req);
+  if (!accountId) return authRequired(corsHeaders);
 
   try {
     const { text, voiceId = "EXAVITQu4vr4xnSDxMaL" } = await req.json();
