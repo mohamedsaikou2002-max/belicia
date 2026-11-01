@@ -1,3 +1,4 @@
+import { verifiedUserId, authRequired } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -15,9 +16,11 @@ const SCENES: Record<string, Record<string, unknown>> = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const accountId = await verifiedUserId(req);
+  if (!accountId) return authRequired(corsHeaders);
 
   try {
-    const { userId = "default", command } = await req.json();
+    const { command } = await req.json();
     if (!command?.type || !command?.action) {
       return new Response(JSON.stringify({ error: "command.type and command.action required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -71,7 +74,7 @@ Deno.serve(async (req) => {
     }
 
     await supabase.from("home_commands").insert({
-      user_id: userId,
+      user_id: accountId,
       command: { ...command, payload },
       status: executed.length ? "executed" : "noop",
     });
