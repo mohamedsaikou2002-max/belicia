@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { TopNav } from "@/components/TopNav";
 import { toast } from "sonner";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Profile = any;
 
@@ -20,21 +21,28 @@ const ProfilePage = () => {
   const [p, setP] = useState<Profile | null>(null);
   const [missionsText, setMissionsText] = useState("");
   const [saving, setSaving] = useState(false);
-  const push = usePushNotifications();
+  const { user } = useAuth();
+  const uid = user?.id;
+  const push = usePushNotifications(uid);
 
   useEffect(() => {
+    if (!uid) return;
+    let active = true;
     (async () => {
-      const { data } = await supabase
-        .from("belicia_profile").select("*").eq("user_id", "default").maybeSingle();
-      setP(data ?? { user_id: "default" });
+      const { data, error } = await supabase
+        .from("belicia_profile").select("*").eq("user_id", uid).maybeSingle();
+      if (!active) return;
+      if (error) toast.error(error.message);
+      setP(data ?? { user_id: uid });
       setMissionsText((((data?.active_missions ?? []) as unknown) as string[]).join("\n"));
     })();
-  }, []);
+    return () => { active = false; };
+  }, [uid]);
 
   const update = (k: string, v: any) => setP((prev: any) => ({ ...prev, [k]: v }));
 
   const save = async () => {
-    if (!p) return;
+    if (!p || !uid) return;
     setSaving(true);
     const missions = missionsText.split("\n").map(s => s.trim()).filter(Boolean);
     const payload: any = {
@@ -53,7 +61,7 @@ const ProfilePage = () => {
       timezone: p.timezone ?? "UTC",
       prayer_location: p.prayer_location ?? null,
     };
-    const { error } = await supabase.from("belicia_profile").update(payload).eq("user_id", "default");
+    const { error } = await supabase.from("belicia_profile").upsert({ ...payload, user_id: uid }, { onConflict: "user_id" });
     setSaving(false);
     if (error) toast.error(error.message); else toast.success("Profile saved");
   };
