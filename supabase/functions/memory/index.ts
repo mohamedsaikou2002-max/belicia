@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authenticatedUserId, AuthenticationError } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,16 +8,17 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  if (!["GET", "POST"].includes(req.method)) return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
+    const user_id = await authenticatedUserId(req);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
     const url = new URL(req.url);
     const action = url.searchParams.get("action") ?? "recent";
-    const user_id = url.searchParams.get("user_id") ?? "default";
 
     if (req.method === "GET") {
       if (action === "recent") {
@@ -73,13 +75,15 @@ Deno.serve(async (req) => {
     if (req.method === "POST") {
       const body = await req.json();
       if (action === "clear") {
-        await supabase.from("belicia_memory").delete().eq("user_id", body.user_id ?? user_id);
+        const { error } = await supabase.from("belicia_memory").delete().eq("user_id", user_id);
+        if (error) throw error;
         return new Response(JSON.stringify({ ok: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (action === "profile") {
-        const updates = { ...body, user_id: body.user_id ?? user_id, updated_at: new Date().toISOString() };
+        const { user_id: _unused, ...profile } = body;
+        const updates = { ...profile, user_id, updated_at: new Date().toISOString() };
         const { data } = await supabase
           .from("belicia_profile")
           .upsert(updates, { onConflict: "user_id" })
@@ -94,8 +98,8 @@ Deno.serve(async (req) => {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Request failed" }), {
+      status: e instanceof AuthenticationError ? e.status : 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
