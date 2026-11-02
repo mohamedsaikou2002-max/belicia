@@ -9,7 +9,7 @@ export class AuthenticationError extends Error {
 }
 
 export async function authenticatedUserId(req: Request): Promise<string> {
-  const token = req.headers.get("Authorization")?.match(/^Bearer\\s+(.+)$/i)?.[1];
+  const token = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) throw new AuthenticationError("Sign in to continue.");
 
   const url = Deno.env.get("SUPABASE_URL");
