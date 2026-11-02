@@ -1,3 +1,4 @@
+import { authFetch } from "@/lib/authFetch";
 import { useEffect, useRef, useState } from "react";
 import { X, Search, FileText, Link2, Sparkles, Loader2, Archive } from "lucide-react";
 import JSZip from "jszip";
@@ -13,7 +14,6 @@ type Chapter = { index: number; title: string; word_count: number; char_count: n
 type Distillation = { chapter_index: number; chapter_title: string; distillation: string };
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 async function streamDistill(
   body: any,
@@ -22,9 +22,9 @@ async function streamDistill(
   onError: (e: string) => void,
 ) {
   try {
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/intel-distill`, {
+    const r = await authFetch(`${SUPABASE_URL}/functions/v1/intel-distill`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${PUBLISHABLE_KEY}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!r.ok || !r.body) { onError(`HTTP ${r.status}`); return; }
@@ -53,12 +53,14 @@ async function streamDistill(
 }
 
 async function archiveCall(action: string, payload: any) {
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/intel-archive`, {
+  const r = await authFetch(`${SUPABASE_URL}/functions/v1/intel-archive`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${PUBLISHABLE_KEY}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, ...payload }),
   });
-  return await r.json();
+  const data = await r.json();
+  if (!r.ok || data.error) throw new Error(data.error ?? `Request failed (${r.status})`);
+  return data;
 }
 
 async function extractPdfText(data: ArrayBuffer): Promise<string> {
@@ -126,7 +128,7 @@ export const BeliciaIntelCompressor = ({ onClose }: Props) => {
     try {
       const data = await archiveCall("search", { q: query, rows: 12 });
       setResults(data.results || []);
-    } finally { setSearching(false); }
+    } catch (e) { setOutput("[ERROR] " + (e instanceof Error ? e.message : String(e))); } finally { setSearching(false); }
   };
 
   const loadDoc = async (doc: ArchiveDoc) => {

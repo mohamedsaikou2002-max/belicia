@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { authFetch, functionUrl } from "@/lib/authFetch";
 import { supabase } from "@/integrations/supabase/client";
 import { BeliciaOrb } from "@/components/BeliciaOrb";
 import { TopNav } from "@/components/TopNav";
@@ -21,6 +23,9 @@ declare global {
 }
 
 const Index = () => {
+  const { user } = useAuth();
+  const userId = user?.id ?? "";
+  const sessionKey = `belicia_session_id:${userId}`;
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -30,56 +35,54 @@ const Index = () => {
   const [useArchive, setUseArchive] = useState(false);
   const [mode, setMode] = useState<"wisdom" | "tafsir" | "cosmology" | "ethics" | "conquest">("wisdom");
   const [intensity, setIntensity] = useState(0);
-  const { pemf, connected: pemfConnected } = usePemfState("default");
+  const { pemf, connected: pemfConnected } = usePemfState(userId);
   const [showCompressor, setShowCompressor] = useState(false);
   const [sessionId, setSessionId] = useState<string>(() => {
-    const saved = localStorage.getItem("belicia_session_id");
+    const saved = localStorage.getItem(sessionKey);
     if (saved) return saved;
     const fresh = crypto.randomUUID();
-    localStorage.setItem("belicia_session_id", fresh);
+    localStorage.setItem(sessionKey, fresh);
     return fresh;
   });
   const [sessions, setSessions] = useState<Array<{ session_id: string; preview: string; last: string }>>([]);
   const [showSessions, setShowSessions] = useState(false);
 
-  const SUPA_URL = "https://focrrskgrxdkiddajxuq.supabase.co";
-  const SUPA_HEADERS = {
-    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-  };
-
   const loadSessions = useCallback(async () => {
-    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=sessions`, { headers: SUPA_HEADERS });
+    try {
+    const r = await authFetch(`${functionUrl("memory")}?action=sessions`);
     if (r.ok) {
       const j = await r.json();
       setSessions(j.sessions ?? []);
-    }
+    } else throw new Error("Could not load chats");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not load chats"); }
   }, []);
 
   const loadSessionMessages = useCallback(async (sid: string) => {
-    const r = await fetch(`${SUPA_URL}/functions/v1/memory?action=recent&session_id=${sid}`, { headers: SUPA_HEADERS });
+    try {
+    const r = await authFetch(`${functionUrl("memory")}?action=recent&session_id=${encodeURIComponent(sid)}`);
     if (r.ok) {
       const j = await r.json();
       setMessages(j.messages ?? []);
-    }
+    } else throw new Error("Could not load chat");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not load chat"); }
   }, []);
 
   const newChat = useCallback(() => {
     const fresh = crypto.randomUUID();
-    localStorage.setItem("belicia_session_id", fresh);
+    localStorage.setItem(sessionKey, fresh);
     setSessionId(fresh);
     setMessages([]);
     setShowSessions(false);
     toast.success("New chat started");
     loadSessions();
-  }, [loadSessions]);
+  }, [loadSessions, sessionKey]);
 
   const switchSession = useCallback((sid: string) => {
-    localStorage.setItem("belicia_session_id", sid);
+    localStorage.setItem(sessionKey, sid);
     setSessionId(sid);
     loadSessionMessages(sid);
     setShowSessions(false);
-  }, [loadSessionMessages]);
+  }, [loadSessionMessages, sessionKey]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -127,14 +130,12 @@ const Index = () => {
     if (!voiceOn || !text) return;
     try {
       setSpeaking(true);
-      const r = await fetch(
-        `https://focrrskgrxdkiddajxuq.supabase.co/functions/v1/tts`,
+      const r = await authFetch(
+        functionUrl("tts"),
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({ text }),
         },
@@ -172,7 +173,7 @@ const Index = () => {
       const { data, error } = await supabase.functions.invoke("chat", {
         body: {
           message,
-          userId: "default",
+          userId,
           sessionId,
           archiveMode: useArchive,
           inquiryMode: mode,
@@ -195,7 +196,7 @@ const Index = () => {
       setSending(false);
       setIntensity(0);
     }
-  }, [sending, useArchive, mode, speak, sessionId, pemf, loadSessions]);
+  }, [sending, useArchive, mode, speak, sessionId, pemf, loadSessions, userId]);
 
   // voice input
   const toggleListen = useCallback(() => {
@@ -230,18 +231,14 @@ const Index = () => {
 
   const clearMemory = async () => {
     if (!confirm("Wipe all of Belicia's memory?")) return;
-    const url = `https://focrrskgrxdkiddajxuq.supabase.co/functions/v1/memory?action=clear`;
-    await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({ user_id: "default" }),
-    });
-    setMessages([]);
-    toast.success("Memory cleared");
+    try {
+      const response = await authFetch(`${functionUrl("memory")}?action=clear`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+      });
+      if (!response.ok) throw new Error("Could not clear memory");
+      setMessages([]); setSessions([]);
+      toast.success("Memory cleared");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not clear memory"); }
   };
 
   const stopSpeaking = () => {

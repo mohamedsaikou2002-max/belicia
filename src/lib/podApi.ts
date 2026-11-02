@@ -1,17 +1,18 @@
+import { authFetch } from "@/lib/authFetch";
 // Pod Room — client-side simulation engine + edge-function AI calls.
 // State lives in module scope so the existing PodRoom UI keeps working.
 import { supabase } from "@/integrations/supabase/client";
+supabase.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT" || event === "SIGNED_IN") state = null;
+});
 
 const FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pod-room`;
-const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 async function call(path: string, body?: any) {
-  const r = await fetch(`${FN_URL}${path}`, {
+  const r = await authFetch(`${FN_URL}${path}`, {
     method: body ? "POST" : "GET",
     headers: {
       "Content-Type": "application/json",
-      apikey: ANON,
-      Authorization: `Bearer ${ANON}`,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
