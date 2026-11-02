@@ -9,3 +9,5 @@ Decisions: email/password + Google + Lovable sign-in; email confirmation require
 - [ ] Update pages to use real auth user id instead of "default"
 - [ ] Secure edge functions: verify token server-side, derive user from token (chat, memory, tts, pod-room, game-theory, eagle-eye, intel-distill, intel-archive)
 - [ ] Verify: build clean, signup/login flow works, cross-user isolation holds
+
+- [ ] Update from the user's GitHub repository, starting with the landing page — awaiting repository link or ZIP.
