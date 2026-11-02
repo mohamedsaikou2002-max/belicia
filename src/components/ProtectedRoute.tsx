@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { ReactNode } from "react";
 
 export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
-  const { session, loading } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -14,8 +14,8 @@ export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
     );
   }
 
-  if (!session) {
-    return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
+  if (!user) {
+    return <Navigate to="/auth" replace state={{ from: location.pathname + location.search }} />;
   }
 
   return <>{children}</>;
