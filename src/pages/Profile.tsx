@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,24 +18,27 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
 );
 
 const ProfilePage = () => {
+  const { user } = useAuth();
+  const userId = user?.id ?? "";
   const [p, setP] = useState<Profile | null>(null);
   const [missionsText, setMissionsText] = useState("");
   const [saving, setSaving] = useState(false);
-  const push = usePushNotifications();
+  const push = usePushNotifications(userId);
 
   useEffect(() => {
+    if (!userId) return;
     (async () => {
       const { data } = await supabase
-        .from("belicia_profile").select("*").eq("user_id", "default").maybeSingle();
-      setP(data ?? { user_id: "default" });
+        .from("belicia_profile").select("*").eq("user_id", userId).maybeSingle();
+      setP(data ?? { user_id: userId });
       setMissionsText((((data?.active_missions ?? []) as unknown) as string[]).join("\n"));
     })();
-  }, []);
+  }, [userId]);
 
   const update = (k: string, v: any) => setP((prev: any) => ({ ...prev, [k]: v }));
 
   const save = async () => {
-    if (!p) return;
+    if (!p || !userId) return;
     setSaving(true);
     const missions = missionsText.split("\n").map(s => s.trim()).filter(Boolean);
     const payload: any = {
@@ -53,7 +57,7 @@ const ProfilePage = () => {
       timezone: p.timezone ?? "UTC",
       prayer_location: p.prayer_location ?? null,
     };
-    const { error } = await supabase.from("belicia_profile").update(payload).eq("user_id", "default");
+    const { error } = await supabase.from("belicia_profile").upsert({ ...payload, user_id: userId }, { onConflict: "user_id" });
     setSaving(false);
     if (error) toast.error(error.message); else toast.success("Profile saved");
   };
