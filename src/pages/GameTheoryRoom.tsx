@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { gtChat, gtNarrate, gtSummarize, type GTMessage } from "@/lib/gtApi";
 import { ResearchCascadePanel } from "@/components/research/ResearchCascadePanel";
+import { ResearchExchangePanel } from "@/components/research/ResearchExchangePanel";
 
 export default function GameTheoryRoom() {
   const navigate = useNavigate();
@@ -174,6 +175,7 @@ export default function GameTheoryRoom() {
           </Card>
 
           <ResearchCascadePanel context="Game theory" />
+          <ResearchExchangePanel context="Game theory research" />
 
           {payload && (
             <Card className="bg-card/40 border-white/10 p-4 space-y-3 group relative">
