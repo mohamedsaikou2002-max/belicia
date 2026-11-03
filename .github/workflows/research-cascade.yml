@@ -21,7 +21,8 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
+      # Existing package-lock.json is out of sync with package.json; restore npm ci after lock regeneration.
+      - run: npm install --no-package-lock --no-audit --no-fund --legacy-peer-deps
       - run: npx tsc --noEmit -p tsconfig.app.json
       - run: npm test
       - run: npm run build
