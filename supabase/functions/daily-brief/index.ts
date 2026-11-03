@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authenticate } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,10 @@ async function getFajrTime(lat: number, lng: number): Promise<string | null> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const jobKey = Deno.env.get("DAILY_BRIEF_JOB_KEY");
+  const isJob = Boolean(jobKey && req.headers.get("x-job-key") === jobKey);
+  const auth = isJob ? null : await authenticate(req, corsHeaders);
+  if (!isJob && (!auth?.userId || auth.response)) return auth?.response;
 
   try {
     const supabase = createClient(
@@ -22,7 +27,9 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: profiles } = await supabase.from("belicia_profile").select("*");
+    let query = supabase.from("belicia_profile").select("*").neq("user_id", "default");
+    if (!isJob && auth?.userId) query = query.eq("user_id", auth.userId);
+    const { data: profiles } = await query;
     const results: any[] = [];
 
     for (const profile of profiles ?? []) {

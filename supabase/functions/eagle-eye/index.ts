@@ -6,6 +6,7 @@
 //   07 Digital Footprint     - aggregates checked platforms into timeline scaffold
 //   09 Behavioral Synthesis  - Lovable AI Gateway (Gemini) reads the graph -> profile
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { authenticate } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -146,6 +147,8 @@ async function synthesize(graph: unknown, subject: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const auth = await authenticate(req, corsHeaders);
+  if (auth.response || !auth.userId) return auth.response;
   try {
     const supa = createClient(SUPABASE_URL, SERVICE_KEY);
     const { action, target_id, subject, username, emails, photos } = await req.json();
@@ -158,6 +161,7 @@ Deno.serve(async (req) => {
         });
       }
       const { data: row, error } = await supa.from("eagle_eye_targets").insert({
+        user_id: auth.userId,
         subject, seed_username: username ?? null,
         photos: photos ?? [], exif: (photos ?? []).map((p: any) => p.exif ?? {}),
         status: "scanning",
@@ -209,7 +213,7 @@ Deno.serve(async (req) => {
 
       const { data: updated, error: upErr } = await supa.from("eagle_eye_targets").update({
         accounts, contacts: { breaches: breachResults }, graph, report, status: "complete",
-      }).eq("id", row.id).select().single();
+      }).eq("id", row.id).eq("user_id", auth.userId).select().single();
       if (upErr) throw upErr;
 
       return new Response(JSON.stringify({ target: updated }), {
@@ -218,14 +222,14 @@ Deno.serve(async (req) => {
     }
 
     if (action === "list") {
-      const { data } = await supa.from("eagle_eye_targets").select("*").order("created_at", { ascending: false }).limit(50);
+      const { data } = await supa.from("eagle_eye_targets").select("*").eq("user_id", auth.userId).order("created_at", { ascending: false }).limit(50);
       return new Response(JSON.stringify({ targets: data ?? [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (action === "get" && target_id) {
-      const { data } = await supa.from("eagle_eye_targets").select("*").eq("id", target_id).single();
+      const { data } = await supa.from("eagle_eye_targets").select("*").eq("id", target_id).eq("user_id", auth.userId).single();
       return new Response(JSON.stringify({ target: data }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

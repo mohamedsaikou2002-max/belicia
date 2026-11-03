@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { authenticate } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -243,6 +244,8 @@ async function askWithFallback(body: ChatBody, history: MemoryRow[]): Promise<st
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const auth = await authenticate(req, corsHeaders);
+  if (auth.response || !auth.userId) return auth.response;
 
   try {
     const body = (await req.json()) as ChatBody;
@@ -256,7 +259,7 @@ serve(async (req: Request) => {
       { auth: { persistSession: false } },
     );
 
-    const userId = body.userId ?? "default";
+    const userId = auth.userId;
     const sessionId = body.sessionId ?? crypto.randomUUID();
 
     const { data: previous } = await supabase
@@ -269,7 +272,7 @@ serve(async (req: Request) => {
 
     const response = await askWithFallback(body, previous ?? []);
 
-    await supabase.from("belicia_memory").insert([
+    const { error: saveError } = await supabase.from("belicia_memory").insert([
       {
         user_id: userId,
         session_id: sessionId,
@@ -289,6 +292,7 @@ serve(async (req: Request) => {
         pemf_coherence_at_time: body.pemfContext?.coherenceScore ?? null,
       },
     ]);
+    if (saveError) throw new Error("Could not save this conversation");
 
     return json({ response, sessionId });
   } catch (error) {
