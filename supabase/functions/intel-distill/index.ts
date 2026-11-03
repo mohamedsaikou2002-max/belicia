@@ -1,3 +1,4 @@
+import { authenticate } from "../_shared/auth.ts";
 // Belicia Intel Compressor — Anthropic streaming distillation
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -228,6 +229,8 @@ function streamMany(messages: { header?: string; user: string }[]): Response {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await authenticate(req, corsHeaders);
+  if (auth.response || !auth.userId) return auth.response;
   try {
     const body = await req.json();
     const mode = body.mode || "single"; // single | batch

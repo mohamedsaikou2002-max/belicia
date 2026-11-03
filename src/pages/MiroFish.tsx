@@ -1,3 +1,4 @@
+import { authFetch, functionUrl } from "@/lib/authFetch";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TopNav } from "@/components/TopNav";
 import { Button } from "@/components/ui/button";
@@ -6,12 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Send, Play, FastForward, Zap, FileText, RefreshCw } from "lucide-react";
 
-const MIRO_URL = "https://focrrskgrxdkiddajxuq.supabase.co/functions/v1/mirofish";
-const HEADERS = {
-  "Content-Type": "application/json",
-  apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-};
+const MIRO_URL = functionUrl("mirofish");
+const HEADERS = { "Content-Type": "application/json" };
 
 const THEATRES = [
   { id: "italia", label: "Italia" },
@@ -48,7 +45,7 @@ const TABS = ["Narrative Lab", "Swarm Reactor", "Prediction Report", "Interrogat
 type Tab = typeof TABS[number];
 
 async function api(action: string, method: "GET" | "POST" | "DELETE" = "POST", body?: any) {
-  const r = await fetch(`${MIRO_URL}?action=${action}`, {
+  const r = await authFetch(`${MIRO_URL}?action=${action}`, {
     method, headers: HEADERS, body: body ? JSON.stringify(body) : undefined,
   });
   const j = await r.json();

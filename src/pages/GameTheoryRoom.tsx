@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Brain, Send, Sparkles, Film, Loader2, Copy, Check } from "lucide-react";
@@ -9,6 +10,8 @@ import { toast } from "sonner";
 import { gtChat, gtNarrate, gtSummarize, type GTMessage } from "@/lib/gtApi";
 
 export default function GameTheoryRoom() {
+  const { user } = useAuth();
+  const bridgeKey = `gt_pod_payload:${user?.id ?? ""}`;
   const navigate = useNavigate();
   const [messages, setMessages] = useState<GTMessage[]>([]);
   const [input, setInput] = useState("");
@@ -75,7 +78,7 @@ export default function GameTheoryRoom() {
 
   const sendToPod = () => {
     if (!payload) return;
-    sessionStorage.setItem("gt_pod_payload", JSON.stringify(payload));
+    sessionStorage.setItem(bridgeKey, JSON.stringify(payload));
     navigate("/pod-room");
   };
 
