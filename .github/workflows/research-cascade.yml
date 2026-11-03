@@ -1,0 +1,28 @@
+name: Social cascade sandbox validation
+on:
+  push:
+    paths:
+      - 'src/lib/research/**'
+      - 'src/components/research/**'
+      - 'src/pages/GameTheoryRoom.tsx'
+      - '.github/workflows/research-cascade.yml'
+  pull_request:
+    paths:
+      - 'src/lib/research/**'
+      - 'src/components/research/**'
+      - 'src/pages/GameTheoryRoom.tsx'
+      - '.github/workflows/research-cascade.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      # Existing package-lock.json is out of sync with package.json; restore npm ci after lock regeneration.
+      - run: npm install --no-package-lock --no-audit --no-fund --legacy-peer-deps
+      - run: npx tsc --noEmit -p tsconfig.app.json
+      - run: npm test
+      - run: npm run build

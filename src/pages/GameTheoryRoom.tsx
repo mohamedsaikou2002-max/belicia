@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { gtChat, gtNarrate, gtSummarize, type GTMessage } from "@/lib/gtApi";
+import { ResearchCascadePanel } from "@/components/research/ResearchCascadePanel";
 
 export default function GameTheoryRoom() {
   const navigate = useNavigate();
@@ -171,6 +172,8 @@ export default function GameTheoryRoom() {
               {summarizing ? <><Loader2 size={14} className="animate-spin mr-2" /> Summarizing...</> : <><Sparkles size={14} className="mr-2" /> Send to Pod Room</>}
             </Button>
           </Card>
+
+          <ResearchCascadePanel context="Game theory" />
 
           {payload && (
             <Card className="bg-card/40 border-white/10 p-4 space-y-3 group relative">
