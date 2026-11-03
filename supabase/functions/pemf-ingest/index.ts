@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authenticate } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,9 +25,12 @@ function recommendation(state: string): string {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await authenticate(req, corsHeaders);
+  if (auth.response || !auth.userId) return auth.response;
 
   try {
-    const { userId = "default", apiKey, readings } = await req.json();
+    const { apiKey, readings } = await req.json();
+    const userId = auth.userId;
     const expected = Deno.env.get("PEMF_DEVICE_KEY");
     if (expected && apiKey !== expected) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {

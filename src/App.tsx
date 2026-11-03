@@ -15,6 +15,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import Landing from "./pages/Landing";
 
 const queryClient = new QueryClient();
 
@@ -22,10 +23,11 @@ const AccountRoutes = () => {
   const { user } = useAuth();
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/auth" element={<Auth />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       {[
-        ["/", <Index />], ["/briefs", <Briefs />], ["/profile", <ProfilePage />],
+        ["/chat", <Index />], ["/briefs", <Briefs />], ["/profile", <ProfilePage />],
         ["/home", <HomePage />], ["/pod-room", <PodRoom />],
         ["/eagle-eye", <EagleEye />], ["/game-theory", <GameTheoryRoom />],
       ].map(([path, page]) => (

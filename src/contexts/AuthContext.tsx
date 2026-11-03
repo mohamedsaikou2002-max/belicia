@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     queryClient.clear();
-    sessionStorage.removeItem("gt_pod_payload");
+    if (session?.user.id) sessionStorage.removeItem(`gt_pod_payload:${session.user.id}`);
   };
 
   return (

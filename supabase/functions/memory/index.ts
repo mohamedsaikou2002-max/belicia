@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authenticate } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +8,8 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await authenticate(req, corsHeaders);
+  if (auth.response || !auth.userId) return auth.response;
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -16,7 +19,7 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const action = url.searchParams.get("action") ?? "recent";
-    const user_id = url.searchParams.get("user_id") ?? "default";
+    const user_id = auth.userId;
 
     if (req.method === "GET") {
       if (action === "recent") {
@@ -73,13 +76,15 @@ Deno.serve(async (req) => {
     if (req.method === "POST") {
       const body = await req.json();
       if (action === "clear") {
-        await supabase.from("belicia_memory").delete().eq("user_id", body.user_id ?? user_id);
+        const { error } = await supabase.from("belicia_memory").delete().eq("user_id", user_id);
+        if (error) throw error;
         return new Response(JSON.stringify({ ok: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (action === "profile") {
-        const updates = { ...body, user_id: body.user_id ?? user_id, updated_at: new Date().toISOString() };
+        const { id: _id, user_id: _owner, ...fields } = body;
+        const updates = { ...fields, user_id, updated_at: new Date().toISOString() };
         const { data } = await supabase
           .from("belicia_profile")
           .upsert(updates, { onConflict: "user_id" })

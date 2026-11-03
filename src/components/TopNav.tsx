@@ -5,7 +5,7 @@ import { LogOut } from "lucide-react";
 import { toast } from "sonner";
 
 const LINKS = [
-  { to: "/", label: "ORB" },
+  { to: "/chat", label: "ORB" },
   { to: "/briefs", label: "BRIEFS" },
   { to: "/pod-room", label: "POD ROOM" },
   { to: "/eagle-eye", label: "EAGLE EYE" },

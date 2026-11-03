@@ -1,3 +1,4 @@
+import { authenticate } from "../_shared/auth.ts";
 // Belicia Intel Compressor — Archive proxy + URL fetch
 // Actions: search, metadata, fetch-text, fetch-url
 const corsHeaders = {
@@ -60,6 +61,8 @@ function splitChapters(text: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await authenticate(req, corsHeaders);
+  if (auth.response || !auth.userId) return auth.response;
   try {
     const body = await req.json();
     const action = body.action;

@@ -1,3 +1,4 @@
+import { authenticate } from "../_shared/auth.ts";
 // MiroFish Reactive Cold System — Deno port of mirofish_reactor.py
 // All actions routed by ?action=...
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -148,7 +149,6 @@ const COUNTRY_CORPUS: Record<string, CountryEntry> = {
   SB: { name:"Solomon Islands", continent:"Oceania", theatre:"custom", regions:["Honiara","Western","Malaita","Guadalcanal","Choiseul","Makira-Ulawa"], first:["John","Mary","Peter","Grace","David","Sarah","Daniel","Hope","Samuel","Joy","Michael","Ruth","James","Esther","Paul","Faith"], last:["Sogavare","Kemakeza","Lilo","Houenipwela","Manele","Wale","Maelanga","Hilly","Talasasa","Boyers","Tausinga","Filualea","Maetia","Sasako","Rini","Ramofafia"] },
 };
 
-const USER_ID = "default";
 
 type SimState = {
   status: "idle" | "building" | "running" | "paused" | "complete" | "error";
@@ -175,11 +175,11 @@ function emptyState(): SimState {
   };
 }
 
-async function loadState(): Promise<{ id: string | null; state: SimState }> {
+async function loadState(userId: string): Promise<{ id: string | null; state: SimState }> {
   const { data } = await supabase
     .from("mirofish_sims")
     .select("id, state")
-    .eq("user_id", USER_ID)
+    .eq("user_id", userId)
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -187,13 +187,14 @@ async function loadState(): Promise<{ id: string | null; state: SimState }> {
   return { id: data.id, state: { ...emptyState(), ...(data.state as any) } };
 }
 
-async function saveState(id: string | null, state: SimState): Promise<string> {
+async function saveState(id: string | null, state: SimState, userId: string): Promise<string> {
   if (id) {
-    await supabase.from("mirofish_sims").update({ state, updated_at: new Date().toISOString() }).eq("id", id);
+    await supabase.from("mirofish_sims").update({ state, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", userId);
     return id;
   }
-  const { data } = await supabase.from("mirofish_sims").insert({ user_id: USER_ID, state }).select("id").single();
-  return data!.id;
+  const { data } = await supabase.from("mirofish_sims").insert({ user_id: userId, state }).select("id").single();
+  if (!data) throw new Error("Could not save simulation");
+  return data.id;
 }
 
 async function geminiCall(prompt: string, system: string, max_tokens: number, model: string): Promise<string> {
@@ -594,6 +595,9 @@ function json(data: any, status = 200) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const auth = await authenticate(req, corsHeaders);
+  if (auth.response || !auth.userId) return auth.response;
+  const userId = auth.userId;
   if (!GEMINI_KEY && !LOVABLE_KEY && !ANTHROPIC_KEY) return json({ error: "No AI provider configured" }, 500);
 
   const url = new URL(req.url);
@@ -602,7 +606,7 @@ Deno.serve(async (req) => {
   if (req.method === "POST") { try { body = await req.json(); } catch { /* empty */ } }
 
   try {
-    let { id, state } = await loadState();
+    let { id, state } = await loadState(userId);
 
     switch (action) {
       case "health":
@@ -637,7 +641,7 @@ Deno.serve(async (req) => {
 
       case "reset":
         state = emptyState();
-        await saveState(id, state);
+        await saveState(id, state, userId);
         return json({ status: "idle", message: "Simulation reset. Ready for a new narrative." });
 
       case "start": {
@@ -669,7 +673,7 @@ Deno.serve(async (req) => {
         });
         state.clusters = state.agents.length;
         state.status = "running";
-        await saveState(id, state);
+        await saveState(id, state, userId);
         return json({
           status: "running", world_build: world, agents: state.agents, seed,
           message: `World built. ${state.agents.length} agents spawned. Ready for round stepping.`,
@@ -680,7 +684,7 @@ Deno.serve(async (req) => {
         if (!["running", "paused"].includes(state.status))
           return json({ error: `Cannot step: simulation is ${state.status}.` }, 400);
         if (state.round >= state.max_rounds) {
-          state.status = "complete"; await saveState(id, state);
+          state.status = "complete"; await saveState(id, state, userId);
           return json({ error: "Simulation complete. Generate report." }, 400);
         }
         const next = state.round + 1;
@@ -691,7 +695,7 @@ Deno.serve(async (req) => {
         state.rounds.push(rd);
         if (next % 5 === 0) state.clusters = Math.max(2, state.clusters - 1);
         if (next >= state.max_rounds) state.status = "complete";
-        await saveState(id, state);
+        await saveState(id, state, userId);
         return json({
           round: next, events: rd.events, emergence_note: rd.emergence_note,
           influence: state.influence, resistance: state.resistance,
@@ -714,7 +718,7 @@ Deno.serve(async (req) => {
           all.push({ round: next, events: rd.events, emergence_note: rd.emergence_note });
         }
         state.status = "complete";
-        await saveState(id, state);
+        await saveState(id, state, userId);
         return json({
           status: "complete", rounds_run: all.length,
           influence: state.influence, resistance: state.resistance, rounds: all,
@@ -732,7 +736,7 @@ Deno.serve(async (req) => {
           state.status = "running";
           state.max_rounds += 5;
         }
-        await saveState(id, state);
+        await saveState(id, state, userId);
         return json({
           variable: body.variable, total_injections: state.injected_variables.length,
           resistance: state.resistance, status: state.status,
@@ -743,7 +747,7 @@ Deno.serve(async (req) => {
       case "report": {
         const report = await generateReport(state);
         state.report = report;
-        await saveState(id, state);
+        await saveState(id, state, userId);
         return json({
           report, influence: state.influence, resistance: state.resistance,
           rounds_analysed: state.rounds.length, agents: state.agents,
@@ -758,7 +762,7 @@ Deno.serve(async (req) => {
         hist.push({ role: "user", content: body.message });
         hist.push({ role: "assistant", content: reply });
         state.chat_histories[body.agent_id] = hist;
-        await saveState(id, state);
+        await saveState(id, state, userId);
         return json({
           agent_id: agent.id, agent_name: agent.name, agent_color: agent.color,
           archetype: agent.archetype, reply, round: state.round,

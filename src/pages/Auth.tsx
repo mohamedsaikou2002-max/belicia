@@ -18,10 +18,14 @@ const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { session, loading } = useAuth();
-  const from = (location.state as any)?.from ?? "/";
+  const intended = (location.state as { from?: string } | null)?.from ?? sessionStorage.getItem("auth_return_to") ?? "/chat";
+  const from = intended.startsWith("/") && !intended.startsWith("//") && !["/auth", "/reset-password"].includes(intended) ? intended : "/chat";
 
   useEffect(() => {
-    if (!loading && session) navigate(from, { replace: true });
+    if (!loading && session) {
+      sessionStorage.removeItem("auth_return_to");
+      navigate(from, { replace: true });
+    }
   }, [session, loading, navigate, from]);
 
   const handleEmail = async (e: React.FormEvent) => {
@@ -60,6 +64,7 @@ const Auth = () => {
   };
 
   const handleOAuth = async (provider: "google" | "lovable") => {
+    sessionStorage.setItem("auth_return_to", from);
     setBusy(true);
     try {
       const result = await lovable.auth.signInWithOAuth(provider, {
@@ -142,39 +147,39 @@ const Auth = () => {
         </div>
 
         <div className="space-y-2">
-          <button
+          <Button
             type="button"
             disabled={busy}
             onClick={() => handleOAuth("google")}
             className="w-full border border-white/20 rounded-md py-2 text-sm text-white/80 hover:bg-white/10 transition disabled:opacity-50"
           >
             Continue with Google
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             disabled={busy}
             className="lovable-auth-button w-full disabled:opacity-50"
             onClick={() => handleOAuth("lovable")}
           >
             Continue with Lovable
-          </button>
+          </Button>
         </div>
 
         <div className="text-center text-xs text-white/50 space-y-1">
           {mode === "signin" && (
             <>
-              <button type="button" className="hover:text-white block mx-auto" onClick={() => setMode("signup")}>
+              <Button variant="link" type="button" className="block mx-auto" onClick={() => setMode("signup")}>
                 Need an account? Sign up
-              </button>
-              <button type="button" className="hover:text-white block mx-auto" onClick={() => setMode("forgot")}>
+              </Button>
+              <Button variant="link" type="button" className="block mx-auto" onClick={() => setMode("forgot")}>
                 Forgot password?
-              </button>
+              </Button>
             </>
           )}
           {mode !== "signin" && (
-            <button type="button" className="hover:text-white" onClick={() => setMode("signin")}>
+            <Button variant="link" type="button" onClick={() => setMode("signin")}>
               Back to sign in
-            </button>
+            </Button>
           )}
         </div>
       </div>

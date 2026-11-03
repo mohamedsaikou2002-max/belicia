@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Brain, ArrowLeft, RefreshCw, Settings2, Download, ChevronDown, ChevronUp } from "lucide-react";
@@ -47,6 +48,8 @@ const seirOpacity = (s: string) => ({ S: 0.35, E: 0.65, I: 1, R: 0.25 } as any)[
 
 // ─── component ────────────────────────────────────────────────
 export default function PodRoom() {
+  const { user } = useAuth();
+  const bridgeKey = `gt_pod_payload:${user?.id ?? ""}`;
   // world state
   const [world, setWorld] = useState<any>(null);
   const [worldLoading, setWorldLoading] = useState(false);
@@ -107,13 +110,13 @@ export default function PodRoom() {
       .catch(() => {/* keep defaults */});
     // Bridge: pick up payload from Game Theory Room
     try {
-      const raw = sessionStorage.getItem("gt_pod_payload");
+      const raw = sessionStorage.getItem(bridgeKey);
       if (raw) {
         const p = JSON.parse(raw);
         if (p.narrative) setNarrative(p.narrative);
         if (p.theatre) setTheatre(p.theatre);
         if (p.agent_count) setAgentCount(Math.max(100, Math.min(5000, Math.round(p.agent_count))));
-        sessionStorage.removeItem("gt_pod_payload");
+        sessionStorage.removeItem(bridgeKey);
         toast.success("Loaded scenario from Game Theory Room");
       }
     } catch {/* ignore */}
