@@ -48,13 +48,10 @@ const Auth = () => {
         if (error) throw error;
         if (!data.session) {
           setAwaitingConfirm(true);
-        } else {
-          navigate(from, { replace: true });
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate(from, { replace: true });
       }
     } catch (err: any) {
       toast.error(err.message ?? "Authentication failed");
@@ -68,7 +65,7 @@ const Auth = () => {
     setBusy(true);
     try {
       const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/auth`,
       });
       if (result.error) {
         toast.error(result.error.message ?? "Sign-in failed");
@@ -76,7 +73,7 @@ const Auth = () => {
         return;
       }
       if (result.redirected) return; // browser is navigating away
-      navigate(from, { replace: true });
+      setBusy(false); // AuthContext validates the session before the effect redirects.
     } catch (err: any) {
       toast.error(err.message ?? "Sign-in failed");
       setBusy(false);
