@@ -48,13 +48,10 @@ const Auth = () => {
         if (error) throw error;
         if (!data.session) {
           setAwaitingConfirm(true);
-        } else {
-          navigate(from, { replace: true });
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate(from, { replace: true });
       }
     } catch (err: any) {
       toast.error(err.message ?? "Authentication failed");
@@ -68,7 +65,7 @@ const Auth = () => {
     setBusy(true);
     try {
       const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/auth`,
       });
       if (result.error) {
         toast.error(result.error.message ?? "Sign-in failed");
@@ -76,7 +73,7 @@ const Auth = () => {
         return;
       }
       if (result.redirected) return; // browser is navigating away
-      navigate(from, { replace: true });
+      setBusy(false); // AuthContext validates the session before the effect redirects.
     } catch (err: any) {
       toast.error(err.message ?? "Sign-in failed");
       setBusy(false);
@@ -151,7 +148,8 @@ const Auth = () => {
             type="button"
             disabled={busy}
             onClick={() => handleOAuth("google")}
-            className="w-full border border-white/20 rounded-md py-2 text-sm text-white/80 hover:bg-white/10 transition disabled:opacity-50"
+            variant="outline"
+            className="w-full text-foreground disabled:opacity-50"
           >
             Continue with Google
           </Button>
