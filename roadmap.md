@@ -11,4 +11,5 @@ Decisions: email/password + Google + Lovable sign-in; email confirmation require
 - [ ] Verify: build clean, signup/login flow works, cross-user isolation holds
 - [ ] Finish hosted signup/provider configuration and verify profile creation — blocked by paused Lovable Cloud.
 
-- [ ] Update from the user's GitHub repository, starting with the landing page — awaiting repository link or ZIP.
+- [ ] Apply the current landing page from mohamedsaikou2002-max/belicia while preserving protected workspace routes.
+- [ ] Finish Google sign-in configuration and authenticated verification — provider update rejected because Lovable Cloud is paused.
