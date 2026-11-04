@@ -21,19 +21,32 @@ const ProfilePage = () => {
   const { user } = useAuth();
   const userId = user?.id ?? "";
   const [p, setP] = useState<Profile | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
   const [missionsText, setMissionsText] = useState("");
   const [saving, setSaving] = useState(false);
   const push = usePushNotifications(userId);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) { setP(null); return; }
+    let cancelled = false;
+    setP(null);
+    setLoadError(null);
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("belicia_profile").select("*").eq("user_id", userId).maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        setLoadError(`Unable to load your profile: ${error.message}`);
+        return;
+      }
       setP(data ?? { user_id: userId });
-      setMissionsText((((data?.active_missions ?? []) as unknown) as string[]).join("\n"));
-    })();
-  }, [userId]);
+      setMissionsText(Array.isArray(data?.active_missions) ? data.active_missions.join("\n") : "");
+    })().catch((error: unknown) => {
+      if (!cancelled) setLoadError(error instanceof Error ? error.message : "Profile connection failed");
+    });
+    return () => { cancelled = true; };
+  }, [userId, reload]);
 
   const update = (k: string, v: any) => setP((prev: any) => ({ ...prev, [k]: v }));
 
@@ -57,12 +70,28 @@ const ProfilePage = () => {
       timezone: p.timezone ?? "UTC",
       prayer_location: p.prayer_location ?? null,
     };
-    const { error } = await supabase.from("belicia_profile").upsert({ ...payload, user_id: userId }, { onConflict: "user_id" });
-    setSaving(false);
-    if (error) toast.error(error.message); else toast.success("Profile saved");
+    try {
+      const { data, error } = await supabase.from("belicia_profile")
+        .upsert({ ...payload, user_id: userId }, { onConflict: "user_id" })
+        .select("*").single();
+      if (error) throw error;
+      setP(data);
+      toast.success("Profile saved");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Database write failed");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (!p) return <main className="p-6 text-white/40">Loading…</main>;
+  if (loadError) return (
+    <main className="min-h-screen bg-background text-foreground p-6 space-y-4">
+      <TopNav />
+      <p role="alert" className="text-sm text-red-300">{loadError}</p>
+      <Button onClick={() => setReload(n => n + 1)}>Retry database connection</Button>
+    </main>
+  );
+  if (!p) return <main className="p-6 text-white/40">Loading profile…</main>;
 
   return (
     <main className="min-h-screen bg-background text-foreground p-6">
