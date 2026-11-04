@@ -148,7 +148,8 @@ const Auth = () => {
             type="button"
             disabled={busy}
             onClick={() => handleOAuth("google")}
-            className="w-full border border-white/20 rounded-md py-2 text-sm text-white/80 hover:bg-white/10 transition disabled:opacity-50"
+            variant="outline"
+            className="w-full text-foreground disabled:opacity-50"
           >
             Continue with Google
           </Button>
