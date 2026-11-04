@@ -89,8 +89,11 @@ Do not create a second auth tenant, and never put a service-role key in a Vite
   fail or return no rows; an authenticated cross-owner insert/update must fail.
 - Confirm Edge Functions reject requests with no bearer token and cannot use
   a caller-provided `user_id` to access another account.
-- Run `npm ci && npm run build && npm test` from a checked-out repository
-  before merging and deploying.
+- The existing `package-lock.json` is out of sync with `package.json` and
+  `npm ci` currently fails before compilation. Until the lockfile is
+  regenerated and committed, validate via
+  `npm install --no-package-lock && npm run build && npm test`.
+  Re-generate a consistent lockfile before production release.
 
 **Important:** The GitHub migration being present or a passing frontend build
 does not mean the live DB migration is applied. Do not mark production auth or
