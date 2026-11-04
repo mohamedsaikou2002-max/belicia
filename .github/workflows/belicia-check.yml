@@ -21,6 +21,8 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci
+      # The inherited package-lock.json is currently out of sync with package.json.
+      # Use the manifest for a validation install until a clean lockfile is generated.
+      - run: npm install --no-package-lock
       - run: npm run build
       - run: npm test
