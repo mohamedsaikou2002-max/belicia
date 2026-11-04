@@ -1,0 +1,28 @@
+name: Belicia build and tests
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "supabase/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/belicia-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      # The inherited package-lock.json is currently out of sync with package.json.
+      # Use the manifest for a validation install until a clean lockfile is generated.
+      - run: npm install --no-package-lock
+      - run: npm run build
+      - run: npm test
