@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
-import "@lovable.dev/cloud-auth-js/styles.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -56,26 +54,6 @@ const Auth = () => {
     } catch (err: any) {
       toast.error(err.message ?? "Authentication failed");
     } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleOAuth = async (provider: "google" | "lovable") => {
-    sessionStorage.setItem("auth_return_to", from);
-    setBusy(true);
-    try {
-      const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: `${window.location.origin}/auth`,
-      });
-      if (result.error) {
-        toast.error(result.error.message ?? "Sign-in failed");
-        setBusy(false);
-        return;
-      }
-      if (result.redirected) return; // browser is navigating away
-      setBusy(false); // AuthContext validates the session before the effect redirects.
-    } catch (err: any) {
-      toast.error(err.message ?? "Sign-in failed");
       setBusy(false);
     }
   };
@@ -136,32 +114,6 @@ const Auth = () => {
             {busy ? "…" : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
           </Button>
         </form>
-
-        <div className="flex items-center gap-3 text-[10px] tracking-widest text-white/40">
-          <div className="flex-1 h-px bg-white/10" />
-          OR
-          <div className="flex-1 h-px bg-white/10" />
-        </div>
-
-        <div className="space-y-2">
-          <Button
-            type="button"
-            disabled={busy}
-            onClick={() => handleOAuth("google")}
-            variant="outline"
-            className="w-full text-foreground disabled:opacity-50"
-          >
-            Continue with Google
-          </Button>
-          <Button
-            type="button"
-            disabled={busy}
-            className="lovable-auth-button w-full disabled:opacity-50"
-            onClick={() => handleOAuth("lovable")}
-          >
-            Continue with Lovable
-          </Button>
-        </div>
 
         <div className="text-center text-xs text-white/50 space-y-1">
           {mode === "signin" && (
