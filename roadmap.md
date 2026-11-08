@@ -1,6 +1,6 @@
 # Belicia MKII — Phase 1–3 Roadmap (Accounts + Security)
 
-Decisions: email/password + Google + Lovable sign-in; email confirmation required; legacy "default" data quarantined.
+Decisions: email/password only; no signup verification; legacy "default" data quarantined.
 
 - [x] Enable email/password auth
 - [x] Enable Google + Lovable social sign-in
@@ -12,4 +12,4 @@ Decisions: email/password + Google + Lovable sign-in; email confirmation require
 - [ ] Finish hosted signup/provider configuration and verify profile creation — blocked by paused Lovable Cloud.
 
 - [x] Apply the current landing page from mohamedsaikou2002-max/belicia while preserving protected workspace routes — page, routing, orb, and styles match GitHub exactly.
-- [ ] Finish Google sign-in configuration and authenticated verification — provider update rejected because Lovable Cloud is paused.
+- [ ] Switch to email/password only, disable Google/Lovable, enable instant signup, and verify account creation.
