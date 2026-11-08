@@ -12,4 +12,5 @@ Decisions: email/password only; no signup verification; legacy "default" data qu
 - [ ] Finish hosted signup/provider configuration and verify profile creation — blocked by paused Lovable Cloud.
 
 - [x] Apply the current landing page from mohamedsaikou2002-max/belicia while preserving protected workspace routes — page, routing, orb, and styles match GitHub exactly.
-- [ ] Switch to email/password only, disable Google/Lovable, enable instant signup, and verify account creation.
+- [x] Remove Google and Lovable buttons; offer email/password signup and sign-in only.
+- [ ] Disable hosted Google/Lovable providers, enable instant signup, and verify account creation — settings rejected because Lovable Cloud is paused.
