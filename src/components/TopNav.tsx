@@ -1,8 +1,4 @@
 import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
-import { toast } from "sonner";
 
 const LINKS = [
   { to: "/chat", label: "ORB" },
@@ -16,7 +12,6 @@ const LINKS = [
 
 export const TopNav = () => {
   const { pathname } = useLocation();
-  const { signOut } = useAuth();
   return (
     <nav className="flex flex-wrap items-center gap-4 text-[11px] tracking-[0.3em] font-[Tektur]">
       {LINKS.map((l) => {
@@ -31,9 +26,6 @@ export const TopNav = () => {
           </Link>
         );
       })}
-      <Button variant="ghost" size="icon" aria-label="Sign out" title="Sign out" onClick={() => {
-        void signOut().catch(() => toast.error("Could not sign out. Please try again."));
-      }}><LogOut /></Button>
     </nav>
   );
 };

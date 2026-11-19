@@ -1,6 +1,6 @@
 # Architecture rules
 
-- Wrap app routes in AuthProvider and protect application pages; keep sign-in and recovery public so visitors can establish sessions.
+- Pages are public (no sign-in gate) because the owner wants anyone to use the app.
 - Keep the brand entry page public at / and the existing orb workspace at /chat so visitors can enter before signing in.
 - Derive edge-function ownership from a verified bearer token, never client-supplied identity; scope database operations to that owner to isolate accounts.
 - Use authFetch for manual Cloud requests and the generated client for standard calls so every feature attaches the current session.
